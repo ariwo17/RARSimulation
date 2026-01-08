@@ -195,7 +195,8 @@ class Client:
         else:
             raise Exception('Undefined learning rate type. Received {}'.format(self.lr_type))
 
-        self.optimiser = optim.SGD(self.net.parameters(), lr=lr)
+        # self.optimiser = optim.SGD(self.net.parameters(), lr=lr)
+        self.optimiser = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
         self.net.train()
 
         # step towards new gradients then empty it out to compute new ones

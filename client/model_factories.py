@@ -22,6 +22,7 @@ def DenseNet121(num_classes): return models.DenseNet121(num_classes)
 def GoogLeNet(num_classes): return models.GoogLeNet(num_classes)
 def LeNet(num_classes): return models.LeNet(num_classes)
 def ToyNet(num_classes): return models.ToyNet(num_classes)
+def McCandlishMNIST(num_classes): return models.McCandlishMNIST()
 
 # n_features hardcoded #feature for a4a/a9a
 def LogisticRegression(num_classes): return models.LogisticRegression(n_features=123, num_classes=1)

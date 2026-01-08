@@ -163,6 +163,16 @@ class datasets():
         self.params = params
         self.indices = {}
 
+        # --- INSERT THIS FOR ROBUST SHUFFLING ---
+        # Pre-compute a global random permutation of indices.
+        # This guarantees that 'iid' mode gives purely random subsets to every client.
+        if self.params['data_per_client'] == 'iid':
+            # Use a fixed seed generator for reproducibility of the split
+            generator = torch.Generator()
+            generator.manual_seed(42) 
+            self.iid_indices = torch.randperm(self.trainset_len, generator=generator).tolist()
+        # ----------------------------------------
+
     def get_client_train_data(self, client_id):
 
         if self.params['data_per_client'] == 'sequential':
@@ -176,6 +186,28 @@ class datasets():
             print('(train) client id {} ({})'.format(client_id, len(subset.indices)))
 
             return torch.utils.data.Subset(self.trainset, indices)
+
+# ============================================================
+        # NEW: IID Distribution Mode
+        # ============================================================
+        if self.params['data_per_client'] == 'iid':
+            # Assign a contiguous chunk of the *randomly permuted* indices to this client.
+            # This ensures Client 0 gets random data, Client 1 gets random data, etc.
+            
+            k, m = divmod(self.trainset_len, self.num_clients)
+            
+            # Calculate start/end pointers in the permuted list
+            start_idx = client_id * k + min(client_id, m)
+            end_idx = (client_id + 1) * k + min(client_id + 1, m)
+            
+            # Extract the random indices for this client
+            client_indices = self.iid_indices[start_idx : end_idx]
+
+            # Create the subset
+            subset = torch.utils.data.Subset(self.trainset, client_indices)
+            print('(train) client id {} assigned {} random IID samples'.format(client_id, len(subset.indices)))
+
+            return subset
 
         elif self.params['data_per_client'] == 'label_per_client':
 

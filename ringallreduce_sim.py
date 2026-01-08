@@ -12,6 +12,8 @@ import math
 from client.dataset_factories import datasets
 from client.client import Client
 
+from utils.gns_utils import compute_B_simple_estimator, compute_exact_gns
+
 from compressors.countsketch import CountSketchReceiver, CountSketchSender
 
 def convert_size(size_bytes):
@@ -24,7 +26,7 @@ def convert_size(size_bytes):
    return "%s %s" % (s, size_name[i])
 
 def get_suffix(args):
-    shortcut = {'sequential': 'seq', 'label_per_client': 'lpc'}
+    shortcut = {'sequential': 'seq', 'label_per_client': 'lpc', 'iid': 'iid'}
     return '{}_{}_{}_{}_{}_{}_{}'.format(args['rounds'], args['dataset'], args['compression_scheme'], shortcut[args['data_per_client']], args['clients_per_round'], args['clients'], str(args['nbits']).replace('.', ''))
 
 
@@ -36,23 +38,23 @@ if __name__ == '__main__':
 
     seed = 123                                  # random seed for reproducibility
     gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    num_rounds = 7000                           # number of communication rounds
-    num_clients = 4                             # number of clients
-    test_every = 40                             # test every X rounds
-    lr = 0.01                                   # learning rate for the model
-    lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'exp_decay']
+    num_rounds = 8000                           # number of communication rounds
+    num_clients = 4                           # number of clients
+    test_every = 200                            # test every X rounds
+    lr = 0.1                                   # learning rate for the model
+    lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
     client_train_steps = 1                      # local training steps per client
     client_batch_size = 128                     # Batch size of a client (for both train and test)
-    net = 'ResNet9'                             # CNN model to use
-    dataset = 'CIFAR10'                         # dataset to use
+    net = 'McCandlishMNIST'                             # CNN model to use
+    dataset = 'MNIST'                         # dataset to use
     error_feedback = False                      # -- to be implemented --
     nbits = 1.0                                 # Number of bits per coordinate for compression scheme
-    compression_scheme = 'chunk_topk_single'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
                                                 #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
     sketch_col = 180000                         # number of columns for the sketch matrix
     sketch_row = 1                              # number of rows for the sketch matrix
     k = 25000                                   # top-k k value for any compression scheme  
-    data_per_client = 'sequential'              # data distribution scheme ['sequential', 'label_per_client']
+    data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
     folder = 'ringallreduce'                    # folder to save the results
 
 
@@ -139,6 +141,12 @@ if __name__ == '__main__':
         'latency': [],
         'scatter_total_sent': [],
         'gather_total_sent': [],
+        'G2_estimate': [],
+        'S_estimate': [],
+        'GNS_estimate': [],
+        'L_Norm': [],
+        'G_Norm': [],
+        'Norms_ratio': []
     }
 
     if not os.path.isdir('results'):
@@ -190,6 +198,12 @@ if __name__ == '__main__':
 
     cumulative_bandwidth = 0
     cumulative_latency = 0
+
+    # --- EMA Initialization ---
+    beta = 0.99  # Smoothing factor (Try 0.99 or 0.999 for very noisy data)
+    running_G2 = 0
+    running_S = 0
+    # --------------------------
 
 
     for round in range(start_round + 1, start_round + 1 + num_rounds):
@@ -305,6 +319,71 @@ if __name__ == '__main__':
         max_data_sent.append(max_data)
         gather_sending_rounds += num_clients-1
 
+        #### Gradient Noise Scale (B_simple) Estimator ####
+
+        # Local gradient from a single client
+        local_grad = clients[0].unsketched_gradient
+
+        # Collect Local Gradients from ALL Clients
+        local_sq_norms = []
+        for c_id in clients_per_round:
+            # Get the norm of this client's gradient BEFORE aggregation
+            g_vec = clients[c_id].unsketched_gradient
+            local_sq_norms.append(torch.linalg.vector_norm(g_vec)**2)
+
+        # Global aggregated gradient (ring-allreduce output)
+        if isinstance(global_gradients, list):
+            global_grad_sum = torch.cat(global_gradients)
+        else:
+            global_grad_sum = global_gradients
+
+        global_grad_mean = global_grad_sum / num_clients
+
+        # Diagnostic check 1
+        N_small = (torch.linalg.vector_norm(local_grad)**2).item()
+        N_big = (torch.linalg.vector_norm(global_grad_mean)**2).item()
+        ratio = N_small / N_big
+
+        # # Diagnostic check 2 - gradient shapes
+        # print(f"\n[Sanity Check] Gradient Sizes at Round {round}:")
+        # print(f"  > Local Gradient Size:  {local_grad.shape}")
+        # print(f"  > Global Gradient Size: {global_grad_mean.shape}")
+        # print(f"  > Elements in Local:    {local_grad.numel()}")
+        # print(f"  > Elements in Global:   {global_grad_mean.numel()}")
+
+        # Local and effective global batch sizes
+        B_small = client_batch_size
+        B_big = client_batch_size * num_clients
+
+        # Compute the estimator
+        B_simple = compute_B_simple_estimator(local_grad, global_grad_mean, B_small, B_big)
+        inst_GNS = B_simple[0]
+        inst_G2 = B_simple[1]
+        inst_S = B_simple[2]
+
+        # --- EMA Update Logic ---
+        if round == start_round + 1:
+            # Initialize with the first value
+            running_G2 = inst_G2
+            running_S = inst_S
+        else:
+            # Update moving averages
+            running_G2 = beta * running_G2 + (1 - beta) * inst_G2
+            running_S = beta * running_S + (1 - beta) * inst_S
+
+        # Compute Smoothed GNS (Ratio of averages)
+        # We use a small epsilon (1e-8) to prevent division by zero if G2 is 0
+        smoothed_GNS = running_S / (running_G2 + 1e-8) 
+        # ------------------------
+
+        results['GNS_estimate'].append(smoothed_GNS)
+        results['G2_estimate'].append(running_G2)
+        results['S_estimate'].append(running_S)
+        results['L_Norm'].append(N_small)
+        results['G_Norm'].append(N_big)
+        results['Norms_ratio'].append(N_small / N_big)
+        
+        # ================================================
 
         for client_id in clients_per_round:
             client_train_loss, client_train_correct, client_train_total = clients[client_id].get_train_stats()
@@ -341,13 +420,31 @@ if __name__ == '__main__':
             results['cumulative_latency'].append(cumulative_latency)
             results['scatter_total_sent'] = total_data_sent_scatter
             results['gather_total_sent'] = total_data_sent_gather
+            # --- EXACT GNS CALCULATION ---
+            # Use Client 0's model (they are synced) and the full dataset
+            true_gns = compute_exact_gns(
+                clients[1], 
+                dataloader.trainset, 
+                device, 
+                limit=5000  # Remove 'limit' for 100% exactness, or keep for speed
+            )    
+            print(f"Round {round} EXACT GNS: {true_gns}")
+            # Store in your results dictionary
+            if 'Exact_GNS' not in results: results['Exact_GNS'] = []
+            results['Exact_GNS'].append(true_gns)
 
 
         kbar.update(round, values=[
             ("train accuracy", train_acc),
             ("test accuracy", model_test_accuracy),
             ("Bandwidth", bandwidth_scatter),
-            ("Latency", latency)
+            ("Latency", latency),
+            ("GNS_estimate", smoothed_GNS),
+            ("G_estimate", running_G2),
+            ("S_estimate", running_S),
+            ("L_norm", N_small),
+            ("G_norm", N_big),
+            ("Norms_ratio", N_small / N_big)
         ])
 
     
