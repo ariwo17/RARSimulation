@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 class McCandlishMNIST(nn.Module):
     """
-    Exact architecture from McCandlish et al. Appendix A.4.1 for MNIST.
+    Architecture reconstructed from McCandlish et al. Appendix A.4.1 for MNIST.
     - Conv1: 32 filters, 5x5
     - Conv2: 64 filters, 5x5
     - Hidden: 1024 units

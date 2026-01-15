@@ -1,82 +1,74 @@
 import torch
 
-def compute_B_simple_estimator(local_grad, global_grad, B_small, B_big):
-    """
-    Implements the two-batch method for computing an unbiased estimator for the simplified Gradient Noise Scale (GNS)
-    as described in Appendix A1 of An Empirical Model of Large-Batch Training by McCandlish et al.
-    
-    local_grad:    gradient from one client      (B_small = B)
-    global_grad:   aggregated gradient (mean across all clients) (B_big = N*B)
-    b_small:       local batch size
-    b_big:         effective global batch size
-    """
+class GNSEstimator:
+    def __init__(self, ema_decay=0.99):
+        self.ema_decay = ema_decay
+        self.running_S = 0.0
+        self.running_G2 = 0.0
+        self.step = 0
 
-    N_small = torch.linalg.vector_norm(local_grad)**2
-    N_big   = torch.linalg.vector_norm(global_grad)**2
+    def update(self, avg_small_sq_norm, big_sq_norm, B_small, B_big):
+        """
+        Updates the estimator with the current step's energy values.
+        Implements the two-batch method for computing an unbiased estimator for the simplified Gradient Noise Scale (GNS) 
+        as described in Appendix A1 of An Empirical Model of Large-Batch Training by McCandlish et al.
+        
+        avg_small_sq_norm: Average of squared norms of individual worker gradients (Variance Reduced)
+        big_sq_norm: Squared norm of the global aggregated gradient
+        """
+        val_small = avg_small_sq_norm
+        val_big = big_sq_norm
 
-    G2 = (B_big * N_big - B_small * N_small) / (B_big - B_small)
-    S  = (N_small - N_big) / (1/B_small - 1/B_big)
+        # McCandlish Appendix A.1
+        term_S = (val_small - val_big) / (1.0 / B_small - 1.0 / B_big)
+        term_G2 = (B_big * val_big - B_small * val_small) / (B_big - B_small)
 
-    B_simple = S / G2
+        if self.step == 0:
+            self.running_S = term_S
+            self.running_G2 = term_G2
+        else:
+            self.running_S = self.ema_decay * self.running_S + (1 - self.ema_decay) * term_S
+            self.running_G2 = self.ema_decay * self.running_G2 + (1 - self.ema_decay) * term_G2
+        
+        self.step += 1
 
-    return (B_simple.item(), G2.item(), S.item())
-
+    def get_stats(self):
+        if abs(self.running_G2) < 1e-12:
+            return 0.0, self.running_G2, self.running_S
+        
+        gns = self.running_S / self.running_G2
+        return gns, self.running_G2, self.running_S
 
 def compute_exact_gns(client, dataset, device, limit=None):
-    """
-    Calculates the EXACT Simple Noise Scale (B_simple) by iterating 
-    the full dataset with batch_size=1.
-    
-    Args:
-        client: A client instance (to use its model/weights)
-        dataset: The full training dataset (e.g. dataloader.trainset)
-        device: torch device
-        limit: (Optional) If not None, calculate over a random subset of size 'limit' 
-               to save time (e.g. 5000 is still 2500x better than the 2-batch trick).
-    """
-    # 1. Setup
     model = client.net
-    model.eval() # Use eval to fix dropout masks if you want "deterministic" landscape properties
-                 # OR use .train() if you want to measure the noise *including* dropout noise.
-                 # McCandlish uses 0.4 Dropout for MNIST, so .train() is technically 
-                 # what the optimizer faces.
     model.train() 
-    
     criterion = torch.nn.CrossEntropyLoss()
     
-    # Create a loader for individual samples
     if limit:
-        # Optional: Random subset for speed
         indices = torch.randperm(len(dataset))[:limit]
         subset = torch.utils.data.Subset(dataset, indices)
         loader = torch.utils.data.DataLoader(subset, batch_size=1, shuffle=False)
     else:
-        # Full Exact Calculation
         loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
 
     print(f"   [Exact GNS] Computing over {len(loader)} samples...")
 
-    # 2. Accumulators
     sum_grad_vec = None
     sum_sq_norm = 0.0
     num_samples = 0
 
-    # 3. Iterate
     for inputs, targets in loader:
         inputs, targets = inputs.to(device), targets.to(device)
-        
         model.zero_grad()
         output = model(inputs)
         loss = criterion(output, targets)
         loss.backward()
 
-        # Flatten and collect gradient for this sample
         grads = [p.grad.view(-1) for p in model.parameters() if p.grad is not None]
         if not grads: continue
         
         flat_grad = torch.cat(grads)
         
-        # Accumulate E[g] and E[|g|^2]
         if sum_grad_vec is None:
             sum_grad_vec = torch.zeros_like(flat_grad)
         
@@ -84,23 +76,12 @@ def compute_exact_gns(client, dataset, device, limit=None):
         sum_sq_norm += (torch.norm(flat_grad)**2).item()
         num_samples += 1
 
-    # 4. Calculate Statistics
-    # Mean Gradient Vector: G
     G_vec = sum_grad_vec / num_samples
-    
-    # Squared Norm of Mean Gradient: |G|^2
     G_sq_norm = (torch.norm(G_vec)**2).item()
-    
-    # Mean of Squared Norms: E[|g|^2]
     E_g_sq = sum_sq_norm / num_samples
-    
-    # Trace of Covariance: tr(Sigma) = E[|g|^2] - |E[g]|^2
     trace_sigma = E_g_sq - G_sq_norm
     
-    # Simple Noise Scale: B = tr(Sigma) / |G|^2
-    if G_sq_norm < 1e-10:
-        return 0.0 # Avoid div by zero at convergence
+    if G_sq_norm < 1e-12:
+        return 0.0
         
-    B_simple = trace_sigma / G_sq_norm
-    
-    return B_simple
+    return trace_sigma / G_sq_norm

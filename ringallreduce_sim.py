@@ -12,7 +12,7 @@ import math
 from client.dataset_factories import datasets
 from client.client import Client
 
-from utils.gns_utils import compute_B_simple_estimator, compute_exact_gns
+from utils.gns_utils import GNSEstimator, compute_exact_gns
 
 from compressors.countsketch import CountSketchReceiver, CountSketchSender
 
@@ -40,11 +40,11 @@ if __name__ == '__main__':
     gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
     num_rounds = 8000                           # number of communication rounds
     num_clients = 4                           # number of clients
-    test_every = 200                            # test every X rounds
-    lr = 0.1                                   # learning rate for the model
-    lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
+    test_every = 50                            # test every X rounds
+    lr = 0.01                                   # learning rate for the model
+    lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'exp_decay']
     client_train_steps = 1                      # local training steps per client
-    client_batch_size = 128                     # Batch size of a client (for both train and test)
+    client_batch_size = 32                     # Batch size of a client (for both train and test)
     net = 'McCandlishMNIST'                             # CNN model to use
     dataset = 'MNIST'                         # dataset to use
     error_feedback = False                      # -- to be implemented --
@@ -118,7 +118,12 @@ if __name__ == '__main__':
                                     error_feedback=error_feedback, seed=seed, num_clients=num_clients,
                                     testset=dataloader.get_test_data(), k_value = k, sketch_col=sketch_col, sketch_row=sketch_row)
     
-    
+    # NEW: Synchronize initial weights
+    print("==> Synchronizing client weights to ensure identical start...")
+    w_0 = clients[0].net.state_dict()
+    for client_id in range(1, num_clients):
+        clients[client_id].net.load_state_dict(w_0)
+
     if compression_scheme == 'none':
         b = 32
     else:
@@ -199,10 +204,8 @@ if __name__ == '__main__':
     cumulative_bandwidth = 0
     cumulative_latency = 0
 
-    # --- EMA Initialization ---
-    beta = 0.99  # Smoothing factor (Try 0.99 or 0.999 for very noisy data)
-    running_G2 = 0
-    running_S = 0
+    # Initialize GNS Estimator
+    gns_est = GNSEstimator(ema_decay=0.99)
     # --------------------------
 
 
@@ -234,6 +237,11 @@ if __name__ == '__main__':
         else:
             zeros_tensor = torch.zeros(clients[0].pytorch_total_params, device=device)
             global_gradients = list(torch.chunk(zeros_tensor, num_clients))
+
+        state_0 = clients[0].net.state_dict()
+        for client_id in clients_per_round:
+            if client_id != 0:
+                clients[client_id].net.load_state_dict(state_0)
 
         # Update client networks and perform a training step
         for client_id in clients_per_round:
@@ -321,67 +329,39 @@ if __name__ == '__main__':
 
         #### Gradient Noise Scale (B_simple) Estimator ####
 
-        # Local gradient from a single client
-        local_grad = clients[0].unsketched_gradient
-
-        # Collect Local Gradients from ALL Clients
+        # Compute Small-Batch Gradient Norm
         local_sq_norms = []
         for c_id in clients_per_round:
-            # Get the norm of this client's gradient BEFORE aggregation
-            g_vec = clients[c_id].unsketched_gradient
-            local_sq_norms.append(torch.linalg.vector_norm(g_vec)**2)
+            g_vec = clients[c_id].get_gradient()
+            local_sq_norms.append(torch.linalg.vector_norm(g_vec) ** 2)
+        
+        avg_small_sq_norm = torch.stack(local_sq_norms).mean().item()
 
-        # Global aggregated gradient (ring-allreduce output)
+        # Compute Effective Large-Batch Gradient Norm
         if isinstance(global_gradients, list):
-            global_grad_sum = torch.cat(global_gradients)
+            global_grad_vec = torch.cat(global_gradients)
         else:
-            global_grad_sum = global_gradients
+            global_grad_vec = global_gradients
 
-        global_grad_mean = global_grad_sum / num_clients
+        global_grad_mean = global_grad_vec / num_clients
+        big_sq_norm = (torch.linalg.vector_norm(global_grad_mean) ** 2).item()
 
-        # Diagnostic check 1
-        N_small = (torch.linalg.vector_norm(local_grad)**2).item()
-        N_big = (torch.linalg.vector_norm(global_grad_mean)**2).item()
-        ratio = N_small / N_big
-
-        # # Diagnostic check 2 - gradient shapes
-        # print(f"\n[Sanity Check] Gradient Sizes at Round {round}:")
-        # print(f"  > Local Gradient Size:  {local_grad.shape}")
-        # print(f"  > Global Gradient Size: {global_grad_mean.shape}")
-        # print(f"  > Elements in Local:    {local_grad.numel()}")
-        # print(f"  > Elements in Global:   {global_grad_mean.numel()}")
-
-        # Local and effective global batch sizes
-        B_small = client_batch_size
-        B_big = client_batch_size * num_clients
-
-        # Compute the estimator
-        B_simple = compute_B_simple_estimator(local_grad, global_grad_mean, B_small, B_big)
-        inst_GNS = B_simple[0]
-        inst_G2 = B_simple[1]
-        inst_S = B_simple[2]
-
-        # --- EMA Update Logic ---
-        if round == start_round + 1:
-            # Initialize with the first value
-            running_G2 = inst_G2
-            running_S = inst_S
-        else:
-            # Update moving averages
-            running_G2 = beta * running_G2 + (1 - beta) * inst_G2
-            running_S = beta * running_S + (1 - beta) * inst_S
-
-        # Compute Smoothed GNS (Ratio of averages)
-        # We use a small epsilon (1e-8) to prevent division by zero if G2 is 0
-        smoothed_GNS = running_S / (running_G2 + 1e-8) 
-        # ------------------------
+        # Update Estimator
+        gns_est.update(
+            avg_small_sq_norm, 
+            big_sq_norm, 
+            B_small=client_batch_size, 
+            B_big=client_batch_size * num_clients
+        )
+        
+        smoothed_GNS, running_G2, running_S = gns_est.get_stats()
 
         results['GNS_estimate'].append(smoothed_GNS)
         results['G2_estimate'].append(running_G2)
         results['S_estimate'].append(running_S)
-        results['L_Norm'].append(N_small)
-        results['G_Norm'].append(N_big)
-        results['Norms_ratio'].append(N_small / N_big)
+        results['L_Norm'].append(avg_small_sq_norm)
+        results['G_Norm'].append(big_sq_norm)
+        results['Norms_ratio'].append(avg_small_sq_norm / (big_sq_norm + 1e-12))
         
         # ================================================
 
@@ -420,18 +400,23 @@ if __name__ == '__main__':
             results['cumulative_latency'].append(cumulative_latency)
             results['scatter_total_sent'] = total_data_sent_scatter
             results['gather_total_sent'] = total_data_sent_gather
-            # --- EXACT GNS CALCULATION ---
-            # Use Client 0's model (they are synced) and the full dataset
-            true_gns = compute_exact_gns(
-                clients[1], 
-                dataloader.trainset, 
-                device, 
-                limit=5000  # Remove 'limit' for 100% exactness, or keep for speed
-            )    
-            print(f"Round {round} EXACT GNS: {true_gns}")
-            # Store in your results dictionary
-            if 'Exact_GNS' not in results: results['Exact_GNS'] = []
-            results['Exact_GNS'].append(true_gns)
+
+            # --- DEBUG: Check for Divergence ---
+            # 1. Check Learnable Weights (Should be 0.0)
+            w0 = list(clients[0].net.parameters())
+            w1 = list(clients[1].net.parameters())
+            weight_diff = sum((p0 - p1).norm().item() for p0, p1 in zip(w0, w1))
+    
+            # 2. Check Batch Norm Stats (Likely > 0.0)
+            s0 = clients[0].net.state_dict()
+            s1 = clients[1].net.state_dict()
+            bn_diff = 0.0
+            for key in s0:
+                # BN stats are usually named 'running_mean' or 'running_var'
+                if "running" in key: 
+                    bn_diff += (s0[key].float() - s1[key].float()).norm().item()
+            
+            print(f"[Round {round}] Weight Diff: {weight_diff:.6f} | BN Stats Diff: {bn_diff:.6f}")
 
 
         kbar.update(round, values=[
@@ -442,9 +427,7 @@ if __name__ == '__main__':
             ("GNS_estimate", smoothed_GNS),
             ("G_estimate", running_G2),
             ("S_estimate", running_S),
-            ("L_norm", N_small),
-            ("G_norm", N_big),
-            ("Norms_ratio", N_small / N_big)
+            ("Norms_ratio", avg_small_sq_norm / (big_sq_norm + 1e-12))
         ])
 
     

@@ -127,7 +127,8 @@ class Client:
     
     def update_net(self, acc_grad):
 
-        acc_grad /= self.num_clients # Average the gradients
+        # acc_grad /= self.num_clients # OLD WAY: this causes issues
+        acc_grad = acc_grad / self.num_clients # Average the gradients
             
 
         # if acc_grad is smaller in size then it was sketched.
@@ -197,6 +198,7 @@ class Client:
 
         # self.optimiser = optim.SGD(self.net.parameters(), lr=lr)
         self.optimiser = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
+        # self.optimiser = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9)
         self.net.train()
 
         # step towards new gradients then empty it out to compute new ones
