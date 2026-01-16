@@ -41,15 +41,15 @@ if __name__ == '__main__':
     num_rounds = 8000                           # number of communication rounds
     num_clients = 4                           # number of clients
     test_every = 50                            # test every X rounds
-    lr = 0.01                                   # learning rate for the model
-    lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'exp_decay']
+    lr = 0.1                                   # learning rate for the model
+    lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
     client_train_steps = 1                      # local training steps per client
     client_batch_size = 32                     # Batch size of a client (for both train and test)
     net = 'McCandlishMNIST'                             # CNN model to use
     dataset = 'MNIST'                         # dataset to use
     error_feedback = False                      # -- to be implemented --
     nbits = 1.0                                 # Number of bits per coordinate for compression scheme
-    compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    compression_scheme = 'cshtopk_estimate'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
                                                 #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
     sketch_col = 180000                         # number of columns for the sketch matrix
     sketch_row = 1                              # number of rows for the sketch matrix
@@ -277,10 +277,17 @@ if __name__ == '__main__':
         ########################################################
         ########################################################
 
+        # Variable to hold the true global norm for GNS
+        true_global_sq_norm = 0.0
+
         # Special handling for the 'cshtopk_actual' compression scheme
 
         if compression_scheme == 'cshtopk_actual':
             global_gradients = torch.cat(global_gradients)
+
+            # Capture Norm of the Global Sketch
+            true_global_sq_norm = (torch.linalg.vector_norm(global_gradients) ** 2).item()
+
             global_sketch['vec'] = global_gradients
             decompressed_sketch = global_sketch_decompressor.decompress(global_sketch)
 
@@ -305,6 +312,10 @@ if __name__ == '__main__':
 
         if compression_scheme == 'cshtopk_estimate':
             global_gradients = torch.cat(global_gradients)
+
+            # Capture Norm of the Global Sketch
+            true_global_sq_norm = (torch.linalg.vector_norm(global_gradients) ** 2).item()
+
             global_sketch['vec'] = global_gradients
             decompressed_sketch = global_sketch_decompressor.decompress(global_sketch)
             
@@ -329,22 +340,61 @@ if __name__ == '__main__':
 
         #### Gradient Noise Scale (B_simple) Estimator ####
 
-        # Compute Small-Batch Gradient Norm
         local_sq_norms = []
+        
         for c_id in clients_per_round:
-            g_vec = clients[c_id].get_gradient()
-            local_sq_norms.append(torch.linalg.vector_norm(g_vec) ** 2)
+            raw_grad = clients[c_id].get_gradient()
+
+            # CASE 1: Count Sketch (Dictionary)
+            if isinstance(raw_grad, dict):
+                # Use the sketch vector. 
+                # For cshtopk, this matches 'true_global_sq_norm' (both are sketches).
+                g_vec = raw_grad['vec']
+                local_sq_norms.append(torch.linalg.vector_norm(g_vec) ** 2)
+
+            # CASE 2: Chunk TopK (Dense -> needs Compression)
+            elif 'chunk_topk' in compression_scheme:
+                # Local is Dense, Global is Sparse. Must compress Local to match.
+                # We perform a "simulation" of the compression on the dense grad 
+                # to get the "Local Sparse Norm".
+                dense_vec = raw_grad
+                
+                # Determine k (assuming args_for_suffix logic or global k)
+                # k was defined in main scope
+                
+                # Fast local TopK norm:
+                # We don't need indices, just the values of the top k elements.
+                # Note: chunk_topk distributes k across chunks, but sum of topk(chunks) 
+                # is roughly topk(full). For simplicity/speed, we topk the full vector.
+                top_k_values, _ = torch.topk(dense_vec.abs(), k=k)
+                local_sq_norms.append(torch.norm(top_k_values)**2)
+
+            # CASE 3: Standard / Vector TopK
+            else:
+                # vector_topk returns sparse, none returns dense.
+                # Both match their global counterparts naturally.
+                local_sq_norms.append(torch.linalg.vector_norm(raw_grad) ** 2)
         
         avg_small_sq_norm = torch.stack(local_sq_norms).mean().item()
 
-        # Compute Effective Large-Batch Gradient Norm
-        if isinstance(global_gradients, list):
-            global_grad_vec = torch.cat(global_gradients)
-        else:
-            global_grad_vec = global_gradients
 
-        global_grad_mean = global_grad_vec / num_clients
-        big_sq_norm = (torch.linalg.vector_norm(global_grad_mean) ** 2).item()
+        # Compute Effective Large-Batch Gradient Norm
+        # Check for cshtopk modes
+        if true_global_sq_norm > 0.0:
+            # true_global_sq_norm is ||Sum(g_i)||^2.
+            # We need ||Mean(g_i)||^2 = ||Sum(g_i) / N||^2 = ||Sum||^2 / N^2.
+            big_sq_norm = true_global_sq_norm / (num_clients ** 2)
+        else:
+            # For other schemes, global_gradients is correct (Dense or Sparse)
+            if isinstance(global_gradients, list):
+                global_grad_vec = torch.cat(global_gradients)
+            else:
+                global_grad_vec = global_gradients
+
+            # Average over clients to get the Mean Gradient
+            global_grad_mean = global_grad_vec / num_clients
+            big_sq_norm = (torch.linalg.vector_norm(global_grad_mean) ** 2).item()
+
 
         # Update Estimator
         gns_est.update(
