@@ -13,7 +13,6 @@ from client.dataset_factories import datasets
 from client.client import Client
 
 from utils.gns_utils import GNSEstimator, compute_exact_gns
-# from plots.plot_gns import plot_gns
 
 from compressors.countsketch import CountSketchReceiver, CountSketchSender
 
@@ -28,8 +27,19 @@ def convert_size(size_bytes):
 
 def get_suffix(args):
     shortcut = {'sequential': 'seq', 'label_per_client': 'lpc', 'iid': 'iid'}
-    return '{}_{}_{}_{}_{}_{}_{}'.format(args['rounds'], args['dataset'], args['compression_scheme'], shortcut[args['data_per_client']], args['clients_per_round'], args['clients'], str(args['nbits']).replace('.', ''))
-
+    return '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}'.format(
+        args['dataset'], 
+        args['net'], 
+        args['compression_scheme'], 
+        args['rounds'], 
+        shortcut[args['data_per_client']], 
+        args['clients'], 
+        args['batch_size'], 
+        args['lr'], 
+        args['lr_type'], 
+        args['steps'], 
+        str(args['nbits']).replace('.', '')
+    )
 
 if __name__ == '__main__':
 
@@ -39,10 +49,10 @@ if __name__ == '__main__':
 
     seed = 123                                  # random seed for reproducibility
     gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    num_rounds = 7000                           # number of communication rounds
+    num_rounds = 6000                           # number of communication rounds
     num_clients = 8                           # number of clients
     test_every = 50                            # test every X rounds
-    lr = 0.05                                   # learning rate for the model
+    lr = 0.03                                   # learning rate for the model
     lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
     client_train_steps = 1                      # local training steps per client
     client_batch_size = 32                     # Batch size of a client (for both train and test)
@@ -63,10 +73,14 @@ if __name__ == '__main__':
     args_for_suffix = {
         'rounds': num_rounds,
         'dataset': dataset,
+        'net': net,
         'compression_scheme': compression_scheme,
         'data_per_client': data_per_client,
-        'clients_per_round': num_clients,
         'clients': num_clients,
+        'batch_size': client_batch_size,
+        'lr': lr,
+        'lr_type': lr_type,
+        'steps': client_train_steps,
         'nbits': nbits
     }
 
