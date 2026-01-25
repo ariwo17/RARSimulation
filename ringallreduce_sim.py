@@ -13,6 +13,7 @@ from client.dataset_factories import datasets
 from client.client import Client
 
 from utils.gns_utils import GNSEstimator, compute_exact_gns
+# from plots.plot_gns import plot_gns
 
 from compressors.countsketch import CountSketchReceiver, CountSketchSender
 
@@ -38,18 +39,18 @@ if __name__ == '__main__':
 
     seed = 123                                  # random seed for reproducibility
     gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    num_rounds = 8000                           # number of communication rounds
-    num_clients = 4                           # number of clients
+    num_rounds = 7000                           # number of communication rounds
+    num_clients = 8                           # number of clients
     test_every = 50                            # test every X rounds
-    lr = 0.1                                   # learning rate for the model
+    lr = 0.05                                   # learning rate for the model
     lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
     client_train_steps = 1                      # local training steps per client
     client_batch_size = 32                     # Batch size of a client (for both train and test)
-    net = 'McCandlishMNIST'                             # CNN model to use
+    net = 'ComEffFlPaperCnnModel'                             # CNN model to use
     dataset = 'MNIST'                         # dataset to use
     error_feedback = False                      # -- to be implemented --
     nbits = 1.0                                 # Number of bits per coordinate for compression scheme
-    compression_scheme = 'cshtopk_estimate'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
                                                 #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
     sketch_col = 180000                         # number of columns for the sketch matrix
     sketch_row = 1                              # number of rows for the sketch matrix
@@ -205,7 +206,7 @@ if __name__ == '__main__':
     cumulative_latency = 0
 
     # Initialize GNS Estimator
-    gns_est = GNSEstimator(ema_decay=0.99)
+    gns_est = GNSEstimator(ema_decay=0.999)
     # --------------------------
 
 
@@ -493,6 +494,15 @@ if __name__ == '__main__':
     except:    
         torch.save(data, './results/' + folder + '/' + 'results_' + suffix + '.pt')
     
+    # Save directory for GNS analysis
+    save_dir = './results/' + folder + '/' + compression_scheme
+    if not os.path.exists(save_dir):
+        # Fallback if specific compression folder wasn't made
+        if os.path.isdir('./results/' + folder):
+            save_dir = './results/' + folder
+        else:
+            save_dir = './results' # Last resort
+                
 
     
 
