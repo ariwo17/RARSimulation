@@ -440,6 +440,7 @@ if __name__ == '__main__':
 
         n = len(clients_per_round)
         train_acc = 100. * sum(train_correct[-n:]) / sum(train_total[-n:])
+        sma_train_acc = 100. * sum(train_correct[-n*10:]) / sum(train_total[-n*10:])
 
         bandwidth_scatter = sum(total_data_sent_scatter[-scatter_sending_rounds:]) / scatter_sending_rounds
         bandwidth_gather = sum(total_data_sent_scatter[-gather_sending_rounds:]) / gather_sending_rounds
@@ -494,6 +495,11 @@ if __name__ == '__main__':
             ("S_estimate", running_S),
             ("Norms_ratio", avg_small_sq_norm / (big_sq_norm + 1e-12))
         ])
+
+        # Early stopping to make sure that grid search doesn't waste time/compute
+        if sma_train_acc >= 90:
+            print(f"\n\n*** Target accuracy reached at round {round}! Stopping Early. ***")
+            break
 
     
 
