@@ -49,11 +49,11 @@ if __name__ == '__main__':
 
     seed = 123                                  # random seed for reproducibility
     gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    num_rounds = 6000                           # number of communication rounds
-    num_clients = 8                           # number of clients
-    test_every = 50                            # test every X rounds
-    lr = 0.03                                   # learning rate for the model
-    lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
+    num_rounds = 400                           # number of communication rounds
+    num_clients = 4                           # number of clients
+    test_every = 10                            # test every X rounds
+    lr = 0.005                                   # learning rate for the model
+    lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'exp_decay']
     client_train_steps = 1                      # local training steps per client
     client_batch_size = 32                     # Batch size of a client (for both train and test)
     net = 'ComEffFlPaperCnnModel'                             # CNN model to use
@@ -438,8 +438,8 @@ if __name__ == '__main__':
 
         end_time = time.time()
 
-        curr_train_loss = sum(train_loss[-100:]) / (len(clients_per_round) * 100)
-        train_acc = 100. * sum(train_correct[-100:]) / sum(train_total[-100:])
+        n = len(clients_per_round)
+        train_acc = 100. * sum(train_correct[-n:]) / sum(train_total[-n:])
 
         bandwidth_scatter = sum(total_data_sent_scatter[-scatter_sending_rounds:]) / scatter_sending_rounds
         bandwidth_gather = sum(total_data_sent_scatter[-gather_sending_rounds:]) / gather_sending_rounds
@@ -508,14 +508,14 @@ if __name__ == '__main__':
     except:    
         torch.save(data, './results/' + folder + '/' + 'results_' + suffix + '.pt')
     
-    # Save directory for GNS analysis
-    save_dir = './results/' + folder + '/' + compression_scheme
-    if not os.path.exists(save_dir):
-        # Fallback if specific compression folder wasn't made
-        if os.path.isdir('./results/' + folder):
-            save_dir = './results/' + folder
-        else:
-            save_dir = './results' # Last resort
+    # # Save directory for GNS analysis
+    # save_dir = './results/' + folder + '/' + compression_scheme
+    # if not os.path.exists(save_dir):
+    #     # Fallback if specific compression folder wasn't made
+    #     if os.path.isdir('./results/' + folder):
+    #         save_dir = './results/' + folder
+    #     else:
+    #         save_dir = './results' # Last resort
                 
 
     

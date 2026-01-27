@@ -64,7 +64,7 @@ def plot_gns(results_path, save_dir, suffix, mode, x_min=None, x_max=None):
         ax.legend()
 
     # ==========================================
-    # MODE B: ACCURACY (McCandlish Log-Error)
+    # MODE B: ACCURACY (Log-Error)
     # ==========================================
     elif mode in ['train_acc', 'test_acc']:
         if mode == 'train_acc':
@@ -130,13 +130,13 @@ def plot_gns(results_path, save_dir, suffix, mode, x_min=None, x_max=None):
         major_ticks = potential_ticks[(potential_ticks >= view_err_min * 0.99) & (potential_ticks <= view_err_max * 1.01)]
         ax.set_xticks(major_ticks)
         
-        def mccandlish_formatter(x, pos):
+        def formatter(x, pos):
             acc_val = (1.0 - x) * 100
             if abs(acc_val - round(acc_val)) < 1e-4:
                 return f"{int(round(acc_val))}"
             return f"{acc_val:g}"
 
-        ax.xaxis.set_major_formatter(ticker.FuncFormatter(mccandlish_formatter))
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(formatter))
         
         # Grid
         ax.grid(True, which='major', linestyle='-', linewidth=0.8, alpha=0.5, color='gray')
