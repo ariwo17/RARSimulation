@@ -16,6 +16,9 @@ from utils.gns_utils import GNSEstimator, compute_exact_gns
 
 from compressors.countsketch import CountSketchReceiver, CountSketchSender
 
+import argparse
+parser = argparse.ArgumentParser()
+
 def convert_size(size_bytes):
    if size_bytes == 0:
        return "0B"
@@ -47,26 +50,84 @@ if __name__ == '__main__':
     #######   Arguments   ######
     ############################ 
 
-    seed = 123                                  # random seed for reproducibility
-    gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    num_rounds = 400                           # number of communication rounds
-    num_clients = 4                           # number of clients
-    test_every = 10                            # test every X rounds
-    lr = 0.005                                   # learning rate for the model
-    lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'exp_decay']
-    client_train_steps = 1                      # local training steps per client
-    client_batch_size = 32                     # Batch size of a client (for both train and test)
-    net = 'ComEffFlPaperCnnModel'                             # CNN model to use
-    dataset = 'MNIST'                         # dataset to use
-    error_feedback = False                      # -- to be implemented --
-    nbits = 1.0                                 # Number of bits per coordinate for compression scheme
-    compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
-                                                #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
-    sketch_col = 180000                         # number of columns for the sketch matrix
-    sketch_row = 1                              # number of rows for the sketch matrix
-    k = 25000                                   # top-k k value for any compression scheme  
-    data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
-    folder = 'ringallreduce'                    # folder to save the results
+    # Simulation Config
+    parser.add_argument('--seed', type=int, default=123)
+    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--num_rounds', type=int, default=10000, help="Max safety rounds")
+    parser.add_argument('--num_clients', type=int, default=8)
+    parser.add_argument('--test_every', type=int, default=5, help="Test frequency")
+    parser.add_argument('--target_acc', type=float, default=99.9, help="Stop when SMA train acc hits this")
+
+    # Model & Training
+    parser.add_argument('--lr', type=float, default=0.02)
+    parser.add_argument('--lr_type', type=str, default='const')
+    parser.add_argument('--client_train_steps', type=int, default=1)
+    parser.add_argument('--client_batch_size', type=int, default=1)
+    parser.add_argument('--net', type=str, default='ComEffFlPaperCnnModel')
+    parser.add_argument('--dataset', type=str, default='MNIST')
+    
+    # Data Distribution
+    parser.add_argument('--data_per_client', type=str, default='iid')
+    parser.add_argument('--folder', type=str, default='ringallreduce/grid_search')
+
+    # Compression (Defaults)
+    parser.add_argument('--compression_scheme', type=str, default='none')
+    parser.add_argument('--nbits', type=float, default=1.0)
+    parser.add_argument('--k', type=int, default=25000)
+    parser.add_argument('--sketch_col', type=int, default=180000)
+    parser.add_argument('--sketch_row', type=int, default=1)
+    parser.add_argument('--error_feedback', action='store_true')
+
+    args = parser.parse_args()
+
+    # Map args to variables
+    seed = args.seed                                  # random seed for reproducibility
+    gpu = args.gpu                                    # GPU ID to use (0 for first GPU, -1 for CPU)
+    num_rounds = args.num_rounds                      # number of communication rounds
+    num_clients = args.num_clients                    # number of clients
+    test_every = args.test_every                      # test every X rounds
+    target_acc = args.target_acc                      # target accuracy threshold for early stopping
+    lr = args.lr                                      # learning rate for the model
+    lr_type = args.lr_type                            # learning rate type ['const', 'step_decay', 'exp_decay']
+    client_train_steps = args.client_train_steps      # local training steps per client
+    client_batch_size = args.client_batch_size        # batch size of a client (for both train and test)
+    net = args.net                                    # CNN model to use
+    dataset = args.dataset                            # dataset to use
+    data_per_client = args.data_per_client            # data distribution scheme ['sequential', 'label_per_client', 'iid']
+    folder = args.folder                              # folder to save the results
+    compression_scheme = args.compression_scheme      # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+                                                      #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
+    nbits = args.nbits                                # number of bits per coordinate for compression scheme
+    k = args.k                                        # top-k k value for any compression scheme
+    sketch_col = args.sketch_col                      # number of columns for the sketch matrix
+    sketch_row = args.sketch_row                      # number of rows for the sketch matrix
+    error_feedback = args.error_feedback              # -- to be implemented --
+
+    # ==============================================================
+    # Uncomment these if you want to run the simulation standalone #
+    # ==============================================================
+
+    # seed = 123                                  # random seed for reproducibility
+    # gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
+    # num_rounds = 10000                           # number of communication rounds
+    # num_clients = 8                           # number of clients
+    # test_every = 5                            # test every X rounds
+    # target_acc = 99                           # target accuracy threshold for early stopping
+    # lr = 0.06                                   # learning rate for the model
+    # lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'exp_decay']
+    # client_train_steps = 1                      # local training steps per client
+    # client_batch_size = 8                     # Batch size of a client (for both train and test)
+    # net = 'ComEffFlPaperCnnModel'                             # CNN model to use
+    # dataset = 'MNIST'                         # dataset to use
+    # error_feedback = False                      # -- to be implemented --
+    # nbits = 1.0                                 # Number of bits per coordinate for compression scheme
+    # compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    #                                             #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
+    # sketch_col = 180000                         # number of columns for the sketch matrix
+    # sketch_row = 1                              # number of rows for the sketch matrix
+    # k = 25000                                   # top-k k value for any compression scheme  
+    # data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
+    # folder = 'ringallreduce/grid_search'                    # folder to save the results
 
 
     
@@ -497,8 +558,8 @@ if __name__ == '__main__':
         ])
 
         # Early stopping to make sure that grid search doesn't waste time/compute
-        if sma_train_acc >= 90:
-            print(f"\n\n*** Target accuracy reached at round {round}! Stopping Early. ***")
+        if sma_train_acc >= target_acc:
+            print(f"\n\n*** Target accuracy {target_acc}% reached at round {round}! Stopping Early. ***")
             break
 
     
@@ -513,20 +574,3 @@ if __name__ == '__main__':
         torch.save(data, './results/' + folder + '/' + compression_scheme + '/' + 'results_' + suffix + '.pt')
     except:    
         torch.save(data, './results/' + folder + '/' + 'results_' + suffix + '.pt')
-    
-    # # Save directory for GNS analysis
-    # save_dir = './results/' + folder + '/' + compression_scheme
-    # if not os.path.exists(save_dir):
-    #     # Fallback if specific compression folder wasn't made
-    #     if os.path.isdir('./results/' + folder):
-    #         save_dir = './results/' + folder
-    #     else:
-    #         save_dir = './results' # Last resort
-                
-
-    
-
-
-
-
-
