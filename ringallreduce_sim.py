@@ -30,7 +30,8 @@ def convert_size(size_bytes):
 
 def get_suffix(args):
     shortcut = {'sequential': 'seq', 'label_per_client': 'lpc', 'iid': 'iid'}
-    return '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}'.format(
+    # Base suffix
+    suffix = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}'.format(
         args['dataset'], 
         args['net'], 
         args['compression_scheme'], 
@@ -43,6 +44,20 @@ def get_suffix(args):
         args['steps'], 
         str(args['nbits']).replace('.', '')
     )
+
+    # Advanced bookkeeping for compression modes
+    # Append Sketch Dimensions for CSH variants
+    if args['compression_scheme'] in ['csh', 'cshtopk_estimate', 'cshtopk_actual']:
+        suffix += '_r{}_c{}'.format(args['sketch_row'], args['sketch_col'])
+
+    # Append K value for TopK variants
+    # Note: We also add K for cshtopk variants since they use K as well
+    if args['compression_scheme'] in ['vector_topk', 'chunk_topk_recompress', 
+                                      'chunk_topk_single', 'cshtopk_estimate', 
+                                      'cshtopk_actual']:
+        suffix += '_k{}'.format(args['k'])
+
+    return suffix
 
 if __name__ == '__main__':
 
@@ -142,7 +157,10 @@ if __name__ == '__main__':
         'lr': lr,
         'lr_type': lr_type,
         'steps': client_train_steps,
-        'nbits': nbits
+        'nbits': nbits,
+        'k': k,
+        'sketch_col': sketch_col,
+        'sketch_row': sketch_row
     }
 
 
