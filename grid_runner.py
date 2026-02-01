@@ -25,10 +25,11 @@ GRID = [
     (4096, 512, 4000, [0.075, 0.1, 0.12]),
     (8192, 1024, 3000, [0.075, 0.1, 0.125]),
     (16384, 2048, 3000, [0.075, 0.1, 0.125])
+    
 ]
 
 # Set target here. 99.0 is standard, 99.9 takes lot longer to run but will make for better B_crit graph.
-TARGET_ACC = 70 
+TARGET_ACC = 99.9
 SCRIPT_NAME = "ringallreduce_sim.py"
 NUM_CLIENTS = 8  # This stays fixed, modelling a DDP scenario where it is prohibitive to train on 1 node
 TARGET_FOLDER = "ringallreduce/grid_search"
