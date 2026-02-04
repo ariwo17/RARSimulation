@@ -81,9 +81,7 @@ class Client:
         # Loss criterion and learning rate
         self.criterion = nn.CrossEntropyLoss()
         self.lr = lr
-
         self.lr_type = lr_type
-
 
         # Create local dataloader for training
         self.trainloader = torch.utils.data.DataLoader(
@@ -117,6 +115,9 @@ class Client:
         else:
             raise("Compression scheme not defined")
 
+        # self.optimiser = optim.SGD(self.net.parameters(), lr=self.lr)
+        self.optimiser = optim.SGD(self.net.parameters(), lr=self.lr, momentum=0.9)
+
         # Error feedback initialization
         if self.error_feedback:
             self.error = torch.zeros(pytorch_total_params)
@@ -127,7 +128,7 @@ class Client:
     
     def update_net(self, acc_grad):
 
-        # acc_grad /= self.num_clients # OLD WAY: this causes issues
+        # acc_grad /= self.num_clients # OLD WAY: this causes in-place averaging issues
         acc_grad = acc_grad / self.num_clients # Average the gradients
             
 
@@ -164,7 +165,7 @@ class Client:
                 param.grad = acc_grad[start:start + numel].view_as(param)
                 start += numel
 
-    def train(self, round, steps):
+    def train(self, round, steps, use_local_updates=False):
         
         def step_decay(initial_lrate, round):
             drop = 0.8
@@ -196,9 +197,12 @@ class Client:
         else:
             raise Exception('Undefined learning rate type. Received {}'.format(self.lr_type))
 
-        self.optimiser = optim.SGD(self.net.parameters(), lr=lr)
-        # self.optimiser = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9)
-        # self.optimiser = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
+        for param_group in self.optimiser.param_groups:
+            param_group['lr'] = lr
+
+        # # Old code - refactored so that vanilla SGD is no longer hard-coded       
+        # self.optimiser = optim.SGD(self.net.parameters(), lr=lr)
+        # # self.optimiser = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9)
         self.net.train()
 
         # step towards new gradients then empty it out to compute new ones
@@ -225,7 +229,8 @@ class Client:
             client_loss = self.criterion(client_outputs, client_targets)
             client_loss.backward()
 
-            self.optimiser.step()
+            if use_local_updates:
+                self.optimiser.step()
 
             self.train_loss += client_loss.item()
             _, predicted = client_outputs.max(1)
