@@ -13,23 +13,33 @@ import sys
 
 GRID = [
     # Format: (Effective_BS, Per_Worker_BS, Timeout_Rounds, [Top_3_LRs])
-    (8, 1, 4000, [0.01, 0.02, 0.03]),
-    (16, 2, 4000, [0.03, 0.04, 0.05]),
-    (32, 4, 4000, [0.02, 0.03, 0.04]),
-    (64, 8, 4000, [0.05, 0.06, 0.075]),
-    (128, 16, 4000, [0.05, 0.075, 0.09]),
-    (256, 32, 4000, [0.05, 0.075, 0.09]),
-    (512, 64, 4000, [0.06, 0.075, 0.09]),
-    (1024, 128, 4000, [0.06, 0.075, 0.1]),
-    (2048, 256, 4000, [0.05, 0.075, 0.1]),
-    (4096, 512, 4000, [0.075, 0.1, 0.12]),
-    (8192, 1024, 3000, [0.075, 0.1, 0.125]),
-    (16384, 2048, 3000, [0.075, 0.1, 0.125])
+    # (8, 1, 4000, [0.01, 0.02, 0.03]),
+    # (16, 2, 4000, [0.03, 0.04, 0.05]),
+    # (32, 4, 4000, [0.02, 0.03, 0.04]),
+    # (64, 8, 4000, [0.05, 0.06, 0.075]),
+    # (128, 16, 4000, [0.05, 0.075, 0.09]),
+    # (256, 32, 4000, [0.05, 0.075, 0.09]),
+    # (512, 64, 4000, [0.06, 0.075, 0.09]),
+    # (1024, 128, 4000, [0.06, 0.075, 0.1]),
+    # (2048, 256, 4000, [0.05, 0.075, 0.1]),
+    # (4096, 512, 4000, [0.075, 0.1, 0.12]),
+    # (8192, 1024, 3000, [0.075, 0.1, 0.125]),
+    # (16384, 2048, 3000, [0.075, 0.1, 0.125])
+
+    (32, 4, 4000, [0.02, 0.04, 0.06]),
+    (128, 16, 4000, [0.08, 0.1, 0.15]),
+    (1024, 128, 4000, [0.2, 0.5, 0.7]),
+    (8192, 1024, 3000, [0.2, 0.5, 0.8]),
+    (16384, 2048, 3000, [0.4, 0.6, 0.8])
     
 ]
 
 # Set target here. 99.0 is standard, 99.9 takes lot longer to run but will make for better B_crit graph.
-TARGET_ACC = 99.9
+TARGET_ACC = 70
+CNN_MODEL = 'ResNet9'
+DATASET = 'CIFAR10'
+OPTIMISER = "momentum"
+LR_TYPE = 'step_decay'
 SCRIPT_NAME = "ringallreduce_sim.py"
 NUM_CLIENTS = 8  # This stays fixed, modelling a DDP scenario where it is prohibitive to train on 1 node
 TARGET_FOLDER = "ringallreduce/grid_search"
@@ -61,7 +71,11 @@ def run_grid():
             # Construct the command
             cmd = [
                 sys.executable, SCRIPT_NAME,
+                "--net", str(CNN_MODEL),
+                "--dataset", str(DATASET),
                 "--lr", str(lr),
+                "--lr_type", str(LR_TYPE),
+                "--optim", str(OPTIMISER),
                 "--client_batch_size", str(pw_bs),
                 "--num_rounds", str(max_rounds),
                 "--target_acc", str(TARGET_ACC),

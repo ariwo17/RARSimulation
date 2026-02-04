@@ -168,7 +168,7 @@ def plot_gns(results_path, suffix, mode, save_dir=DEFAULT_SAVE_DIR, x_min=None, 
     print(f"Saved plot to: {save_path}")
 
 if __name__ == "__main__":
-    mnist_results = "results/ringallreduce/grid_search/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_1_10.pt" 
+    mnist_results = "results/ringallreduce/grid_search/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt" 
 
     # Plot
     plot_gns(mnist_results, "MNIST_well_tuned", mode='rounds', x_min=0, x_max=7000)

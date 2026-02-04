@@ -57,8 +57,8 @@ def plot_metric(file_path, metric, alpha=0.1):
 
 if __name__ == '__main__':
     # Hardcoded Configuration
-    # file_path = "results/ringallreduce/results_MNIST_ComEffFlPaperCnnModel_none_400_iid_4_32_0.005_step_decay_1_10.pt"
-    file_path = "results/ringallreduce/results_MNIST_ComEffFlPaperCnnModel_none_400_iid_4_32_0.005_const_1_10.pt"
+    # file_path = "results/ringallreduce/results_MNIST_ComEffFlPaperCnnModel_none_400_iid_4_32_0.005_step_decay_sgd_1_10.pt"
+    file_path = "results/ringallreduce/results_MNIST_ComEffFlPaperCnnModel_none_400_iid_4_32_0.005_const_sgd_1_10.pt"
     metric = "testACCs" 
     alpha = 0.3
 

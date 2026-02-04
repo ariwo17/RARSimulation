@@ -164,7 +164,7 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
 if __name__ == "__main__":
     
     # Baseline GNS file
-    baseline_file = "results/ringallreduce/grid_search/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_1_10.pt"
+    baseline_file = "results/ringallreduce/grid_search/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt"
     
     # Sketched GNS directory prefix
     sketch_dir = "results/ringallreduce/sketched_gns" 
@@ -174,16 +174,16 @@ if __name__ == "__main__":
         {'path': baseline_file, 'label': 'Baseline $B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
         
         # The Sketched GNS runs
-        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_1_10_r1_c2000.pt"), 
+        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c2000.pt"), 
          'label': 'Sketched $B_{simple}$ ($\delta$=0.2%)', 'color': 'red', 'linestyle': '-'},
 
-        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_1_10_r1_c8800.pt"), 
+        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c8800.pt"), 
          'label': 'Sketched $B_{simple}$ ($\delta$=1%)', 'color': 'purple', 'linestyle': '-'},
          
-        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_1_10_r1_c44000.pt"), 
+        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c44000.pt"), 
          'label': 'Sketched $B_{simple}$ ($\delta$=5%)', 'color': 'mediumseagreen', 'linestyle': '-'},
 
-        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_1_10_r1_c220000.pt"), 
+        {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c220000.pt"), 
          'label': 'Sketched $B_{simple}$ ($\delta$=25%)', 'color': 'darkgreen', 'linestyle': '-'},
     ]
     

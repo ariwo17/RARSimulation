@@ -7,6 +7,8 @@ import sys
 EFF_BS = 128
 PW_BS = 16  # 128 / 8 clients = 16
 LR = 0.05
+LR_TYPE = "const"
+OPTIMISER = "sgd"
 COMPRESSION = "csh"
 MAX_ROUNDS = 4000
 TARGET_ACC = 99.9
@@ -49,6 +51,8 @@ def run_grid():
         cmd = [
             sys.executable, SCRIPT_NAME,
             "--lr", str(LR),
+            "--lr_type", str(LR_TYPE),
+            "--optim", str(OPTIMISER),
             "--client_batch_size", str(PW_BS),
             "--num_rounds", str(MAX_ROUNDS),
             "--target_acc", str(TARGET_ACC),
