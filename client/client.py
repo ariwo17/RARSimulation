@@ -2,7 +2,7 @@ import torch.utils
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
-import torch.optim as optim
+import torch.optim as torch_optim
 import numpy as np
 import math
 from itertools import cycle
@@ -17,7 +17,7 @@ from compressors.countsketch import CountSketchSender, CountSketchReceiver
 ###############################################################
 
 class Client:
-    def __init__(self, client_id, model, lr, lr_type, dataloader, device, device_ids,
+    def __init__(self, client_id, model, lr, lr_type, optim, dataloader, device, device_ids,
                  train_batch_size, test_batch_size, compression_scheme, nbits,
                  error_feedback, seed, num_clients, testset, k_value, sketch_col, sketch_row):
         
@@ -82,6 +82,7 @@ class Client:
         self.criterion = nn.CrossEntropyLoss()
         self.lr = lr
         self.lr_type = lr_type
+        self.optim = optim
 
         # Create local dataloader for training
         self.trainloader = torch.utils.data.DataLoader(
@@ -115,8 +116,19 @@ class Client:
         else:
             raise("Compression scheme not defined")
 
-        # self.optimiser = optim.SGD(self.net.parameters(), lr=self.lr)
-        self.optimiser = optim.SGD(self.net.parameters(), lr=self.lr, momentum=0.9)
+        # Optimiser setup (default is SGD, momentum is preferred for ResNet9 + CIFAR10 setup)
+        # Local updates allow the momentum to accelerate convergence significantly.
+        if self.optim == "sgd":
+            self.optimiser = torch_optim.SGD(self.net.parameters(), lr=self.lr)
+            self.use_local_updates = True
+        elif self.optim == "momentum":
+            self.optimiser = torch_optim.SGD(self.net.parameters(), lr=self.lr, momentum=0.9)
+            self.use_local_updates = False
+        elif self.optim == "adam":
+            self.optimiser = torch_optim.Adam(self.net.parameters(), lr=self.lr)
+            self.use_local_updates = False
+        else:
+            raise ValueError(f"Optimiser mode '{self.optim}' not recognised. Use 'sgd' or 'momentum'.")
 
         # Error feedback initialization
         if self.error_feedback:
@@ -165,7 +177,7 @@ class Client:
                 param.grad = acc_grad[start:start + numel].view_as(param)
                 start += numel
 
-    def train(self, round, steps, use_local_updates=False):
+    def train(self, round, steps):
         
         def step_decay(initial_lrate, round):
             drop = 0.8
@@ -229,7 +241,7 @@ class Client:
             client_loss = self.criterion(client_outputs, client_targets)
             client_loss.backward()
 
-            if use_local_updates:
+            if self.use_local_updates:
                 self.optimiser.step()
 
             self.train_loss += client_loss.item()
