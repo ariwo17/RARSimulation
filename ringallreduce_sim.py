@@ -8,7 +8,6 @@ import time
 from defs import get_device
 import math
 
-
 from client.dataset_factories import datasets
 from client.client import Client
 
@@ -31,7 +30,7 @@ def convert_size(size_bytes):
 def get_suffix(args):
     shortcut = {'sequential': 'seq', 'label_per_client': 'lpc', 'iid': 'iid'}
     # Base suffix
-    suffix = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}'.format(
+    suffix = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}'.format(
         args['dataset'], 
         args['net'], 
         args['compression_scheme'], 
@@ -41,6 +40,7 @@ def get_suffix(args):
         args['batch_size'], 
         args['lr'], 
         args['lr_type'], 
+        args['optim'],
         args['steps'], 
         str(args['nbits']).replace('.', '')
     )
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # Simulation Config
     parser.add_argument('--seed', type=int, default=123)
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--num_rounds', type=int, default=10000, help="Max safety rounds")
+    parser.add_argument('--num_rounds', type=int, default=10000, help="Max rounds")
     parser.add_argument('--num_clients', type=int, default=8)
     parser.add_argument('--test_every', type=int, default=5, help="Test frequency")
     parser.add_argument('--target_acc', type=float, default=99.9, help="Stop when SMA train acc hits this")
@@ -76,6 +76,7 @@ if __name__ == '__main__':
     # Model & Training
     parser.add_argument('--lr', type=float, default=0.02)
     parser.add_argument('--lr_type', type=str, default='const')
+    parser.add_argument('--optim', type=str, default='sgd')
     parser.add_argument('--client_train_steps', type=int, default=1)
     parser.add_argument('--client_batch_size', type=int, default=1)
     parser.add_argument('--net', type=str, default='ComEffFlPaperCnnModel')
@@ -104,6 +105,7 @@ if __name__ == '__main__':
     target_acc = args.target_acc                      # target accuracy threshold for early stopping
     lr = args.lr                                      # learning rate for the model
     lr_type = args.lr_type                            # learning rate type ['const', 'step_decay', 'exp_decay']
+    optim = args.optim                                # optimiser method ['sgd', 'momentum', 'adam']
     client_train_steps = args.client_train_steps      # local training steps per client
     client_batch_size = args.client_batch_size        # batch size of a client (for both train and test)
     net = args.net                                    # CNN model to use
@@ -122,27 +124,28 @@ if __name__ == '__main__':
     # Uncomment these if you want to run the simulation standalone #
     # ==============================================================
 
-    # seed = 123                                  # random seed for reproducibility
-    # gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    # num_rounds = 10000                           # number of communication rounds
-    # num_clients = 8                           # number of clients
-    # test_every = 5                            # test every X rounds
-    # target_acc = 99                           # target accuracy threshold for early stopping
-    # lr = 0.06                                   # learning rate for the model
-    # lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'exp_decay']
-    # client_train_steps = 1                      # local training steps per client
-    # client_batch_size = 8                     # Batch size of a client (for both train and test)
-    # net = 'ComEffFlPaperCnnModel'                             # CNN model to use
-    # dataset = 'MNIST'                         # dataset to use
-    # error_feedback = False                      # -- to be implemented --
-    # nbits = 1.0                                 # Number of bits per coordinate for compression scheme
-    # compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
-    #                                             #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
-    # sketch_col = 180000                         # number of columns for the sketch matrix
-    # sketch_row = 1                              # number of rows for the sketch matrix
-    # k = 25000                                   # top-k k value for any compression scheme  
-    # data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
-    # folder = 'ringallreduce/grid_search'                    # folder to save the results
+    seed = 123                                  # random seed for reproducibility
+    gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
+    num_rounds = 4000                           # number of communication rounds
+    num_clients = 8                           # number of clients
+    test_every = 5                            # test every X rounds
+    target_acc = 99.9                           # target accuracy threshold for early stopping
+    lr = 0.1                                   # learning rate for the model
+    lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
+    optim = 'momentum'                               # optimiser method ['sgd', 'momentum', 'adam']
+    client_train_steps = 1                      # local training steps per client
+    client_batch_size = 16                     # batch size of a client (for both train and test)
+    net = 'ResNet9'                             # CNN model to use
+    dataset = 'CIFAR10'                         # dataset to use
+    error_feedback = False                      # -- to be implemented --
+    nbits = 1.0                                 # number of bits per coordinate for compression scheme
+    compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+                                                #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
+    sketch_col = 180000                         # number of columns for the sketch matrix
+    sketch_row = 1                              # number of rows for the sketch matrix
+    k = 25000                                   # top-k k value for any compression scheme  
+    data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
+    folder = 'ringallreduce/debug'                    # folder to save the results
 
 
     
@@ -156,6 +159,7 @@ if __name__ == '__main__':
         'batch_size': client_batch_size,
         'lr': lr,
         'lr_type': lr_type,
+        'optim': optim,
         'steps': client_train_steps,
         'nbits': nbits,
         'k': k,
@@ -206,7 +210,7 @@ if __name__ == '__main__':
 
 
     for client_id in range(num_clients):
-        clients[client_id] = Client(client_id, model=net, lr=lr, lr_type=lr_type, dataloader=dataloader, device=device, device_ids=device_ids, 
+        clients[client_id] = Client(client_id, model=net, lr=lr, lr_type=lr_type, optim=optim, dataloader=dataloader, device=device, device_ids=device_ids, 
                                     train_batch_size=client_batch_size, test_batch_size=client_batch_size,
                                     compression_scheme=compression_scheme, nbits=nbits,
                                     error_feedback=error_feedback, seed=seed, num_clients=num_clients,
@@ -299,6 +303,8 @@ if __name__ == '__main__':
     cumulative_latency = 0
 
     # Initialize GNS Estimator
+    # 0.999 works best on MNIST
+    # ??? works best on CIFAR10
     gns_est = GNSEstimator(ema_decay=0.999)
     # --------------------------
 
@@ -332,6 +338,7 @@ if __name__ == '__main__':
             zeros_tensor = torch.zeros(clients[0].pytorch_total_params, device=device)
             global_gradients = list(torch.chunk(zeros_tensor, num_clients))
 
+        ## Code used before for testing weight drift problem - can essentially be removed soon
         state_0 = clients[0].net.state_dict()
         for client_id in clients_per_round:
             if client_id != 0:
