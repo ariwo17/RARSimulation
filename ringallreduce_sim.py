@@ -41,7 +41,7 @@ def get_suffix(args):
         args['lr'], 
         args['lr_type'], 
         args['optim'],
-        args['steps'], 
+        args['steps'],
         str(args['nbits']).replace('.', '')
     )
 
@@ -81,6 +81,8 @@ if __name__ == '__main__':
     parser.add_argument('--client_batch_size', type=int, default=1)
     parser.add_argument('--net', type=str, default='ComEffFlPaperCnnModel')
     parser.add_argument('--dataset', type=str, default='MNIST')
+
+    parser.add_argument('--milestones', type=str, default='90.0', help="Comma-separated accuracy milestones")
     
     # Data Distribution
     parser.add_argument('--data_per_client', type=str, default='iid')
@@ -104,8 +106,9 @@ if __name__ == '__main__':
     test_every = args.test_every                      # test every X rounds
     target_acc = args.target_acc                      # target accuracy threshold for early stopping
     lr = args.lr                                      # learning rate for the model
-    lr_type = args.lr_type                            # learning rate type ['const', 'step_decay', 'exp_decay']
+    lr_type = args.lr_type                            # learning rate type ['const', 'step_decay', 'acc_decay', 'exp_decay']
     optim = args.optim                                # optimiser method ['sgd', 'momentum', 'adam']
+    lr_milestones = [float(x) for x in args.milestones.split(',')]
     client_train_steps = args.client_train_steps      # local training steps per client
     client_batch_size = args.client_batch_size        # batch size of a client (for both train and test)
     net = args.net                                    # CNN model to use
@@ -126,15 +129,15 @@ if __name__ == '__main__':
 
     seed = 123                                  # random seed for reproducibility
     gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    num_rounds = 4000                           # number of communication rounds
+    num_rounds = 14000                           # number of communication rounds
     num_clients = 8                           # number of clients
     test_every = 5                            # test every X rounds
-    target_acc = 99.9                           # target accuracy threshold for early stopping
+    target_acc = 97                           # target accuracy threshold for early stopping
     lr = 0.1                                   # learning rate for the model
-    lr_type = 'step_decay'                           # learning rate type ['const', 'step_decay', 'exp_decay']
+    lr_type = 'acc_decay'                           # learning rate type ['const', 'step_decay', 'acc_decay', 'exp_decay']
     optim = 'momentum'                               # optimiser method ['sgd', 'momentum', 'adam']
     client_train_steps = 1                      # local training steps per client
-    client_batch_size = 16                     # batch size of a client (for both train and test)
+    client_batch_size = 64                     # batch size of a client (for both train and test)
     net = 'ResNet9'                             # CNN model to use
     dataset = 'CIFAR10'                         # dataset to use
     error_feedback = False                      # -- to be implemented --
@@ -303,11 +306,18 @@ if __name__ == '__main__':
     cumulative_latency = 0
 
     # Initialize GNS Estimator
-    # 0.999 works best on MNIST
-    # ??? works best on CIFAR10
-    gns_est = GNSEstimator(ema_decay=0.999)
+    # 0.999 appears to works best on both MNIST
+    # 0.99 appears to work better on CIFAR10
+    gns_est = GNSEstimator(ema_decay=0.99)
     # --------------------------
 
+    # =========================================================================
+    #  NEW: Training Accuracy-based Step Decay Setup following McCandlish Paper
+    # =========================================================================
+    lr_milestones = [90.0] # The target accuracy targets after which LR is decayed
+    current_lr_stage = 0
+    current_lr = lr  # Initialize with the starting LR
+    # ===============================================
 
     for round in range(start_round + 1, start_round + 1 + num_rounds):
         scatter_data_sent = 0
@@ -527,6 +537,29 @@ if __name__ == '__main__':
         n = len(clients_per_round)
         train_acc = 100. * sum(train_correct[-n:]) / sum(train_total[-n:])
         sma_train_acc = 100. * sum(train_correct[-n*10:]) / sum(train_total[-n*10:])
+
+        # ===============================================
+        #  NEW: Accuracy-based Step Decay Setup
+        # ===============================================
+        if lr_type == 'acc_decay':
+            # Only check if we have milestones left
+            if current_lr_stage < len(lr_milestones):
+                threshold = lr_milestones[current_lr_stage]
+            
+                # If we hit the target, drop the LR
+                if sma_train_acc >= threshold:
+                    print(f"\n[Round {round}] ACCURACY HIT {sma_train_acc:.2f}% (>= {threshold}%). DECAYING LR.")
+                
+                    # Update Global State
+                    current_lr = current_lr * 0.1
+                    current_lr_stage += 1
+                
+                    # Update All Clients
+                    for key in clients:
+                        clients[key].lr = current_lr
+                    
+                    print(f"==> New Learning Rate: {current_lr}")
+        # ===============================================
 
         bandwidth_scatter = sum(total_data_sent_scatter[-scatter_sending_rounds:]) / scatter_sending_rounds
         bandwidth_gather = sum(total_data_sent_scatter[-gather_sending_rounds:]) / gather_sending_rounds

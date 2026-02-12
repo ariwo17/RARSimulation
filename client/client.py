@@ -179,6 +179,7 @@ class Client:
 
     def train(self, round, steps):
         
+        # --- LEGACY: Time-based Step Decay ---
         def step_decay(initial_lrate, round):
             drop = 0.8
             rounds_drop = 1000
@@ -206,6 +207,10 @@ class Client:
             lr = step_decay(self.lr, round)
         elif self.lr_type == 'exp_decay':
             lr = exp_decay(self.lr, round)
+        elif self.lr_type == 'acc_decay':
+            # NEW: Server controls self.lr based on accuracy milestones.
+            # We just use whatever value is currently set in self.lr
+            lr = self.lr
         else:
             raise Exception('Undefined learning rate type. Received {}'.format(self.lr_type))
 
