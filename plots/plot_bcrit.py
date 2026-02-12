@@ -5,8 +5,8 @@ import pandas as pd
 import matplotlib.ticker as ticker
 
 # CONFIG
-INPUT_FILE = "data/bcrit_results.json"
-PLOT_OUTPUT = "plots/critical_batch_size.png"
+INPUT_FILE = "data/bcrit_results_cifar10.json"
+PLOT_OUTPUT = "plots/critical_batch_size_cifar10.png"
 
 def plot_bcrit():
     if not os.path.exists(INPUT_FILE):
@@ -22,8 +22,8 @@ def plot_bcrit():
 
     df = pd.DataFrame(data)
     
-    # 1. FILTER: Keep robust range (70% - 99.8%)
-    df = df[df['target'] <= 99.8]
+    ## FILTER: Keep robust range (70% - 99.8%)
+    # df = df[df['target'] <= 99.8]
     df = df.sort_values('target')
 
     # DATA PREP
@@ -43,13 +43,12 @@ def plot_bcrit():
     plt.xscale('log') # Log scale for the X-axis spacing
     plt.yscale('log') # Log scale for Critical Batch Size
     
-    # Invert X so it goes 70% -> 99.8% (Left to Right)
+    # Invert X so it goes from left to right
     plt.gca().invert_xaxis()
 
     # FORMATTING TICKS AS ACCURACY
     # We manually set ticks at key Accuracy milestones so the axis reads as Accuracy.
-    # 70%, 90%, 99%, 99.5%, 99.8%
-    acc_ticks = [70, 80, 90, 95, 97, 98, 99, 99.5, 99.8]
+    acc_ticks = [50, 60, 70, 80, 85, 90, 95, 96, 97]
     # Convert these targets to the plotting coordinate system (Error Rate)
     locs = [100.0 - t for t in acc_ticks]
     

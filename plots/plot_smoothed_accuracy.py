@@ -58,7 +58,12 @@ def plot_metric(file_path, metric, alpha=0.1):
 if __name__ == '__main__':
     # Hardcoded Configuration
     # file_path = "results/ringallreduce/results_MNIST_ComEffFlPaperCnnModel_none_400_iid_4_32_0.005_step_decay_sgd_1_10.pt"
-    file_path = "results/ringallreduce/results_MNIST_ComEffFlPaperCnnModel_none_400_iid_4_32_0.005_const_sgd_1_10.pt"
+    # file_path = "results/ringallreduce/results_MNIST_ComEffFlPaperCnnModel_none_400_iid_4_32_0.005_const_sgd_1_10.pt"
+    # file_path = "results/ringallreduce/debug/results_CIFAR10_ResNet9_none_14000_iid_8_16_0.1_acc_decay_momentum_1_10.pt"
+    # file_path = "results/ringallreduce/debug/results_CIFAR10_ResNet9_none_6000_iid_8_1024_0.2_acc_decay_momentum_1_10.pt"
+    # file_path = "results/ringallreduce/debug/results_CIFAR10_ResNet9_none_8000_iid_8_128_0.2_acc_decay_momentum_1_10.pt"
+    # file_path = "results/ringallreduce/grid_search/results_CIFAR10_ResNet9_none_14000_iid_8_4_0.02_acc_decay_momentum_1_10.pt"
+    file_path = "results/ringallreduce/grid_search/results_CIFAR10_ResNet9_none_8000_iid_8_1024_0.15_acc_decay_momentum_1_10.pt"
     metric = "testACCs" 
     alpha = 0.3
 

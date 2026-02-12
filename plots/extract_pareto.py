@@ -6,29 +6,33 @@ import numpy as np
 
 # CONFIG
 RESULTS_DIR = "results/ringallreduce/grid_search"
-OUTPUT_FILE = "data/pareto_data.json"
-SMOOTHING_ALPHA = 0.06 
-TARGETS = [70, 80, 90, 95, 97, 98, 99.0, 99.3, 99.5, 99.8, 99.9]
+OUTPUT_FILE = "data/pareto_data_cifar10.json"
+DATASET = "CIFAR10"
+# 0.06 worked best for MNIST, 0.09 better for CIFAR10 since results are less noisy
+SMOOTHING_ALPHA = 0.09
+TARGETS = [50, 60, 70, 80, 85, 90, 95, 96, 97]
+# [70, 80, 90, 95, 97, 98, 99, 99.3, 99.5, 99.8] for MNIST
+# [50, 60, 70, 80, 85, 90, 95, 96, 97] for CIFAR10
 
 def process_files():
     results_map = {}
-    print(f"Scanning {RESULTS_DIR}...")
+    print(f"Scanning {RESULTS_DIR} for {DATASET}...")
     
     for filename in os.listdir(RESULTS_DIR):
         if not filename.endswith(".pt"): continue
         
         try:
             # Parse Filename
-            # Standard Suffix: {dataset}_{net}_{comp}_{rounds}_{dist}_{clients}_{bs}_{lr}_{lr_type}_{steps}_{nbits}...
             clean_name = filename.replace("results_", "").replace(".pt", "")
             parts = clean_name.split("_")
             
-            # Robust Extraction by Index (Based on standard get_suffix)
+            if parts[0] != DATASET:
+                continue
+            
             num_clients = int(parts[5])
             client_bs = int(parts[6])
             lr = float(parts[7])
-            # Index 8 is lr_type
-            local_steps = int(parts[9]) 
+            local_steps = int(parts[-2]) 
             
             effective_bs = num_clients * client_bs
             
@@ -50,17 +54,33 @@ def process_files():
             # Smoothing
             df['smooth_acc'] = df['train_acc'].ewm(alpha=SMOOTHING_ALPHA).mean()
             
-            # Find Crossing Points
+            # Find Crossing Points with LINEAR INTERPOLATION
             for target in TARGETS:
-                crossing = df[df['smooth_acc'] >= target]
+                # Find index where accuracy first crosses target
+                crossing_idx = df[df['smooth_acc'] >= target].index.min()
                 
-                if not crossing.empty:
-                    first_hit = crossing.iloc[0]
-                    rounds = int(first_hit['round'])
-                    
-                    # ROBUST FORMULA:
-                    # Examples = Rounds * (Clients * BS) * LocalSteps
-                    examples = rounds * effective_bs * local_steps
+                if pd.notna(crossing_idx):
+                    if crossing_idx == 0:
+                        exact_rounds = float(df.loc[crossing_idx, 'round'])
+                    else:
+                        # Interpolate between the step before and the step after
+                        row_after = df.loc[crossing_idx]
+                        row_before = df.loc[crossing_idx - 1]
+                        
+                        y2 = row_after['smooth_acc']
+                        y1 = row_before['smooth_acc']
+                        x2 = row_after['round']
+                        x1 = row_before['round']
+                        
+                        # Formula: x = x1 + (target - y1) * (run / rise)
+                        if y2 != y1:
+                            fraction = (target - y1) / (y2 - y1)
+                            exact_rounds = x1 + fraction * (x2 - x1)
+                        else:
+                            exact_rounds = float(x2)
+
+                    # Examples = Exact_Rounds * (Clients * BS) * LocalSteps
+                    examples = exact_rounds * effective_bs * local_steps
                     
                     # Store result
                     key = (effective_bs, target)
@@ -69,7 +89,7 @@ def process_files():
                     
                     results_map[key].append({
                         "lr": lr,
-                        "steps": rounds, # Optimization Steps = Rounds (in sync SGD)
+                        "steps": exact_rounds, 
                         "examples": examples
                     })
                     
@@ -86,9 +106,9 @@ def process_files():
         final_data.append({
             "bs": bs,
             "target": target,
-            "steps": best_run['steps'],
-            "examples": best_run['examples'],
-            "best_lr": best_run['best_lr'] if 'best_lr' in best_run else best_run['lr']
+            "steps": float(best_run['steps']),
+            "examples": float(best_run['examples']),
+            "best_lr": best_run['lr']
         })
     
     final_data.sort(key=lambda x: (x['target'], x['bs']))

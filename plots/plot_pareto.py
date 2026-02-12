@@ -3,32 +3,31 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib # Added for new colormap API
 from scipy.optimize import curve_fit
 
 # CONFIG
-INPUT_FILE = "data/pareto_data.json"
-BCRIT_OUTPUT_FILE = "data/bcrit_results.json"
-PLOT_OUTPUT = "plots/pareto_frontiers.png"
+INPUT_FILE = "data/pareto_data_cifar10.json"
+BCRIT_OUTPUT_FILE = "data/bcrit_results_cifar10.json"
+PLOT_OUTPUT = "plots/pareto_frontiers_cifar10.png"
 
 # --- MANUAL CONTROL ---
-# Tuple format: (TargetAccuracy, BatchSize)
-# This removes ONLY the specific anomalous dots we define.
 IGNORE_POINTS = [
-    (70, 16384),
-    # (95, 8),
-    # (99, 32),
-    (99.5, 128),
-    # (99.9, 8),
-    # (99.9, 16),
-    # (99.9, 32),
+    # (50, 16384),
+    # (50, 8192),
+    # (60, 16384),
+    # (60, 8192),
+    # (70, 16384),
+    # (70, 8192)
 ]
 
 def mccandlish_model(batch_size, s_min, b_crit):
-    """
-    Equation 2.11 from McCandlish et al.
-    Steps (S) = S_min * (1 + B_crit / B)
-    """
+    """ Standard Model: S = S_min * (1 + B_crit / B) """
     return s_min * (1.0 + b_crit / batch_size)
+
+def log_mccandlish_model(batch_size, s_min, b_crit):
+    """ Log-Space Model for Robust Fitting """
+    return np.log(s_min * (1.0 + b_crit / batch_size))
 
 def plot_pareto_fronts():
     if not os.path.exists(INPUT_FILE):
@@ -40,19 +39,16 @@ def plot_pareto_fronts():
     
     df = pd.DataFrame(raw_data)
     
-    # --- SURGICAL FILTER ---
-    # Removes only the specific (Target, BS) pairs in IGNORE_POINTS
     for (ign_target, ign_bs) in IGNORE_POINTS:
         df = df[~((df['target'] == ign_target) & (df['bs'] == ign_bs))]
 
     bcrit_data = []
 
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(12, 10)) # Increased size for better visibility
     
     targets = sorted(df['target'].unique())
-    cmap = plt.cm.get_cmap('viridis', len(targets))
+    cmap = matplotlib.colormaps['viridis'].resampled(len(targets))
     
-    # Storage for smart axis limits
     all_steps = []
     all_examples = []
 
@@ -61,9 +57,7 @@ def plot_pareto_fronts():
     for i, target in enumerate(targets):
         subset = df[df['target'] == target].sort_values('bs')
         
-        # If we have data, we MUST plot the dots, even if we can't fit the curve.
-        if subset.empty:
-            continue
+        if subset.empty: continue
             
         bs_data = subset['bs'].values.astype(float)
         steps_data = subset['steps'].values.astype(float)
@@ -73,25 +67,29 @@ def plot_pareto_fronts():
         all_examples.extend(examples_data)
         
         color = cmap(i)
-        
-        # Always plot the data points
-        plt.scatter(steps_data, examples_data, color=color, alpha=0.7, label=f"{target}% Acc")
+        plt.scatter(steps_data, examples_data, color=color, alpha=0.7, s=40, label=f"{target}% Acc")
 
-        # Try to fit curve (only if we have >= 3 points)
         if len(subset) >= 3:
             try:
-                p0 = [min(steps_data), 1000.0]
+                # --- ROBUST LOG-SPACE FITTING ---
+                s_min_guess = min(steps_data)
+                e_min_guess = min(examples_data)
+                b_crit_guess = e_min_guess / s_min_guess if s_min_guess > 0 else 1000.0
+                
+                p0 = [s_min_guess, b_crit_guess]
                 bounds = ([0, 0], [np.inf, np.inf])
                 
-                popt, pcov = curve_fit(mccandlish_model, bs_data, steps_data, p0=p0, bounds=bounds, maxfev=10000)
+                popt, pcov = curve_fit(log_mccandlish_model, bs_data, np.log(steps_data), 
+                                     p0=p0, bounds=bounds, maxfev=20000)
+                
                 s_min_fit, b_crit_fit = popt
                 
                 bcrit_data.append({
-                    "target": target,
-                    "b_crit": b_crit_fit,
-                    "s_min": s_min_fit,
-                    "e_min": s_min_fit * b_crit_fit,
-                    "fit_error": np.sqrt(np.diag(pcov))[1]
+                    "target": float(target),
+                    "b_crit": float(b_crit_fit),
+                    "s_min": float(s_min_fit),
+                    "e_min": float(s_min_fit * b_crit_fit),
+                    "fit_error": float(np.sqrt(np.diag(pcov))[1])
                 })
 
                 # Plot Curve
@@ -102,33 +100,33 @@ def plot_pareto_fronts():
 
             except Exception as e:
                 print(f"Fit failed for target {target}%: {e}")
-        else:
-            print(f"Target {target}%: Not enough points for curve fit ({len(subset)}), plotting dots only.")
 
-    # --- AXIS FORMATTING ---
+    # --- FIXED AXIS LIMITS ---
     plt.xscale('log')
     plt.yscale('log')
     
-    # Force X-Axis Extension
-    x_min = min(all_steps) * 0.8 if all_steps else 100
-    plt.xlim(x_min, 1e5) 
-    
-    if all_examples:
-        plt.ylim(min(all_examples)*0.8, max(all_examples)*1.5)
+    # Auto-scaling logic that ensures top points aren't cut off
+    if all_steps and all_examples:
+        x_min = min(all_steps) * 0.5
+        x_max = max(all_steps) * 5.0  # Give room on the right
+        y_min = min(all_examples) * 0.5
+        y_max = max(all_examples) * 3.0 # Generous headroom at the top
+        
+        plt.xlim(x_min, x_max)
+        plt.ylim(y_min, y_max)
 
-    plt.xlabel('Optimization Steps (S)', fontsize=12)
-    plt.ylabel('Examples Processed (E)', fontsize=12)
-    plt.title('Pareto Frontiers (Compute vs Time)', fontsize=14)
+    plt.xlabel('Optimization Steps (S)', fontsize=14)
+    plt.ylabel('Examples Processed (E)', fontsize=14)
+    plt.title('Pareto Frontiers (Compute vs Time)', fontsize=16)
     plt.grid(True, which="both", ls="-", alpha=0.2)
     
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title="Target Accuracy")
+    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', title="Target Accuracy", fontsize=10)
     plt.tight_layout()
     
     os.makedirs(os.path.dirname(PLOT_OUTPUT), exist_ok=True)
     plt.savefig(PLOT_OUTPUT, dpi=300)
     print(f"Pareto plot saved to {PLOT_OUTPUT}")
 
-    # Save Results for plot_bcrit.py
     os.makedirs(os.path.dirname(BCRIT_OUTPUT_FILE), exist_ok=True)
     with open(BCRIT_OUTPUT_FILE, 'w') as f:
         json.dump(bcrit_data, f, indent=4)

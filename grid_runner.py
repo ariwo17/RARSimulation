@@ -5,14 +5,15 @@ import sys
 # I conducted a manual grid search and fine-tuned the learning rates for each batch size.
 # For several of these batch sizes, different learning rates were best for different training accuracy targets.
 
-# Based on my findings, the following pattern is observed:
+# Based on my findings, the following pattern is observed on MNIST:
 # - BS 8-32:   Noise limited (LR 0.02 - 0.03)
 # - BS 64-512: Transition to Saturation (LR 0.05 - 0.075)
 # - BS 1k-16k: High Saturation / Large Step (LR 0.075 - 0.1+)
-# This resembles the SVHN learning rate vs batch size graph rom the McCandlish paper.
+# This resembles the SVHN learning rate vs batch size graph from the McCandlish paper.
 
 GRID = [
     # Format: (Effective_BS, Per_Worker_BS, Timeout_Rounds, [Top_3_LRs])
+    # MNIST grid search
     # (8, 1, 4000, [0.01, 0.02, 0.03]),
     # (16, 2, 4000, [0.03, 0.04, 0.05]),
     # (32, 4, 4000, [0.02, 0.03, 0.04]),
@@ -26,20 +27,27 @@ GRID = [
     # (8192, 1024, 3000, [0.075, 0.1, 0.125]),
     # (16384, 2048, 3000, [0.075, 0.1, 0.125])
 
-    (32, 4, 4000, [0.02, 0.04, 0.06]),
-    (128, 16, 4000, [0.08, 0.1, 0.15]),
-    (1024, 128, 4000, [0.2, 0.5, 0.7]),
-    (8192, 1024, 3000, [0.2, 0.5, 0.8]),
-    (16384, 2048, 3000, [0.4, 0.6, 0.8])
+    # CIFAR10 grid search
+    # (16, 2, 14000, [0.01]),
+    # (32, 4, 14000, [0.01, 0.02, 0.03]),
+    # (64, 8, 14000, [0.03, 0.04, 0.06]),
+    # (128, 16, 14000, [0.06, 0.08, 0.1]),
+    # (256, 32, 14000, [0.075, 0.1, 0.15])
+    # (512, 64, 14000, [0.075, 0.1, 0.15]),
+    # (1024, 128, 10000, [0.1, 0.15, 0.2]),
+    # (2048, 256, 8000, [0.1, 0.15, 0.2]),
+    # (4096, 512, 8000, [0.1, 0.15, 0.2]),
+    # (8192, 1024, 8000, [0.15, 0.2]),
+    # (16384, 2048, 8000, [0.15, 0.2])
     
 ]
 
 # Set target here. 99.0 is standard, 99.9 takes lot longer to run but will make for better B_crit graph.
-TARGET_ACC = 70
+TARGET_ACC = 97.5
 CNN_MODEL = 'ResNet9'
 DATASET = 'CIFAR10'
 OPTIMISER = "momentum"
-LR_TYPE = 'step_decay'
+LR_TYPE = 'acc_decay'
 SCRIPT_NAME = "ringallreduce_sim.py"
 NUM_CLIENTS = 8  # This stays fixed, modelling a DDP scenario where it is prohibitive to train on 1 node
 TARGET_FOLDER = "ringallreduce/grid_search"

@@ -169,8 +169,14 @@ def plot_gns(results_path, suffix, mode, save_dir=DEFAULT_SAVE_DIR, x_min=None, 
 
 if __name__ == "__main__":
     mnist_results = "results/ringallreduce/grid_search/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt" 
+    experimental_cifar_results = "results/ringallreduce/debug/seventh_try[0.6]/results_CIFAR10_ResNet9_none_6003_iid_8_16_0.1_acc_decay_momentum_1_10.pt"
 
     # Plot
-    plot_gns(mnist_results, "MNIST_well_tuned", mode='rounds', x_min=0, x_max=7000)
-    plot_gns(mnist_results, "MNIST_well_tuned", mode='train_acc', x_min=70, x_max=99.9) # This will now be smooth
-    plot_gns(mnist_results, "MNIST_well_tuned", mode='test_acc', x_min=70, x_max=99.2)
+    plot_gns(experimental_cifar_results, "CIFAR10_experimental", mode='rounds', x_min=0, x_max=7000)
+    plot_gns(experimental_cifar_results, "CIFAR10_experimental", mode='train_acc', x_min=50, x_max=90) # This will now be smooth
+    plot_gns(experimental_cifar_results, "CIFAR10_experimental", mode='test_acc', x_min=50, x_max=80)
+
+    # # Plot
+    # plot_gns(mnist_results, "MNIST_well_tuneds", mode='rounds', x_min=0, x_max=7000)
+    # plot_gns(mnist_results, "MNIST_well_tuneds", mode='train_acc', x_min=70, x_max=99.9) # This will now be smooth
+    # plot_gns(mnist_results, "MNIST_well_tuneds", mode='test_acc', x_min=70, x_max=99.2)
