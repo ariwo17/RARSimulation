@@ -1,32 +1,36 @@
 import subprocess
 import time
 import sys
+import os
 
 # --- EXPERIMENT CONFIG ---
-# Fixed parameters for this run (from your request)
-EFF_BS = 128
-PW_BS = 16  # 128 / 8 clients = 16
-LR = 0.05
-LR_TYPE = "const"
-OPTIMISER = "sgd"
+EFF_BS = 512
+PW_BS = 64
+NUM_CLIENTS = 8
+LR = 0.1
+LR_TYPE = "acc_decay"
+OPTIMISER = "momentum"
 COMPRESSION = "csh"
-MAX_ROUNDS = 4000
-TARGET_ACC = 99.9
+MAX_ROUNDS = 14000
+TARGET_ACC = 97.5
+DATASET = "CIFAR10"
+ARCHITECTURE = "ResNet9"
 
-# Varying Sketch Sizes (Colums) for CountSketch on the ComEffFlPaperCnnModel & MNIST
-# d = 876,928 params.
+# Full Gradient Length
+D = 4903242
+
+# Different CSH widths corresponding to different compression rates
+# 50%, 25%, 10%, 5%, 1%, 0.2%
 SKETCH_COLS = [
-    440000, # ~50% (High Fidelity)
-    220000, # ~25% (Medium Fidelity)
-    88000,  # ~10% (Standard)
-    44000,  # ~5%  (Aggressive)
-    8800,   # ~1%  (Very Aggressive)
-    2000    # ~0.2% (Extreme - Expect Noise!)
+    int(D * 0.50),  # 2,451,621
+    int(D * 0.25),  # 1,225,810
+    int(D * 0.10),  # 490,324
+    int(D * 0.05),  # 245,162
+    int(D * 0.01),  # 49,032
+    int(D * 0.002)  # 9,806
 ]
 
 SCRIPT_NAME = "ringallreduce_sim.py"
-NUM_CLIENTS = 8
-# Using a separate folder helps keep these "Compression GNS" runs distinct from your "Critical BS" runs
 TARGET_FOLDER = "ringallreduce/sketched_gns" 
 
 def format_time(seconds):
@@ -38,18 +42,20 @@ def format_time(seconds):
 
 def run_grid():
     print(f"Starting Sketch GNS Search.")
-    print(f"Fixed Settings: BS={EFF_BS} | LR={LR} | Mode={COMPRESSION} | Target={TARGET_ACC}%")
+    print(f"Fixed Settings: BS={EFF_BS} | LR={LR} | Mode={COMPRESSION} | Optim={OPTIMISER}")
+    print(f"Full Gradient Dimension: {D}")
     print("="*60)
 
     for width in SKETCH_COLS:
-        print(f"\n>>> Running Sketch Width: {width} (Ratio: {width/876928:.1%})")
-        print(f"    [Running] Max Rounds: {MAX_ROUNDS} ... ", end='', flush=True)
+        ratio = width / D
+        print(f"\n>>> Running Sketch Width: {width} (Ratio: {ratio:.1%})")
         
         start_time = time.time()
         
-        # Construct the command with compression args
         cmd = [
             sys.executable, SCRIPT_NAME,
+            "--dataset", str(DATASET),
+            "--net", str(ARCHITECTURE),
             "--lr", str(LR),
             "--lr_type", str(LR_TYPE),
             "--optim", str(OPTIMISER),
@@ -62,23 +68,24 @@ def run_grid():
             # Compression Args
             "--compression_scheme", COMPRESSION,
             "--sketch_col", str(width),
-            "--sketch_row", "1" # Standard CountSketch
+            "--sketch_row", "1"
         ]
 
         try:
+            # Using run() to block until finished
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             elapsed = time.time() - start_time
             time_str = format_time(elapsed)
             
-            if "Stopping Early" in result.stdout:
-                print(f"SUCCESS ({time_str})")
-            else:
-                print(f"FINISHED (Timeout) ({time_str})")
-
             if result.returncode != 0:
                 print(f"CRASHED with code {result.returncode}")
-                # print(result.stderr) 
+                # Print last few lines of error
+                print(result.stderr[-500:]) 
+            elif "Stopping Early" in result.stdout:
+                print(f"SUCCESS (Target Reached) ({time_str})")
+            else:
+                print(f"FINISHED (Timeout/Done) ({time_str})")
 
         except Exception as e:
             print(f"EXCEPTION: {e}")

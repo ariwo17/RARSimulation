@@ -127,28 +127,28 @@ if __name__ == '__main__':
     # Uncomment these if you want to run the simulation standalone #
     # ==============================================================
 
-    seed = 123                                  # random seed for reproducibility
-    gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
-    num_rounds = 14000                           # number of communication rounds
-    num_clients = 8                           # number of clients
-    test_every = 5                            # test every X rounds
-    target_acc = 97                           # target accuracy threshold for early stopping
-    lr = 0.1                                   # learning rate for the model
-    lr_type = 'acc_decay'                           # learning rate type ['const', 'step_decay', 'acc_decay', 'exp_decay']
-    optim = 'momentum'                               # optimiser method ['sgd', 'momentum', 'adam']
-    client_train_steps = 1                      # local training steps per client
-    client_batch_size = 64                     # batch size of a client (for both train and test)
-    net = 'ResNet9'                             # CNN model to use
-    dataset = 'CIFAR10'                         # dataset to use
-    error_feedback = False                      # -- to be implemented --
-    nbits = 1.0                                 # number of bits per coordinate for compression scheme
-    compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
-                                                #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
-    sketch_col = 180000                         # number of columns for the sketch matrix
-    sketch_row = 1                              # number of rows for the sketch matrix
-    k = 25000                                   # top-k k value for any compression scheme  
-    data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
-    folder = 'ringallreduce/debug'                    # folder to save the results
+    # seed = 123                                  # random seed for reproducibility
+    # gpu = 0                                     # GPU ID to use (0 for first GPU, -1 for CPU)
+    # num_rounds = 14000                           # number of communication rounds
+    # num_clients = 8                           # number of clients
+    # test_every = 5                            # test every X rounds
+    # target_acc = 97                           # target accuracy threshold for early stopping
+    # lr = 0.1                                   # learning rate for the model
+    # lr_type = 'acc_decay'                           # learning rate type ['const', 'step_decay', 'acc_decay', 'exp_decay']
+    # optim = 'momentum'                               # optimiser method ['sgd', 'momentum', 'adam']
+    # client_train_steps = 1                      # local training steps per client
+    # client_batch_size = 64                     # batch size of a client (for both train and test)
+    # net = 'ResNet9'                             # CNN model to use
+    # dataset = 'CIFAR10'                         # dataset to use
+    # error_feedback = False                      # -- to be implemented --
+    # nbits = 1.0                                 # number of bits per coordinate for compression scheme
+    # compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    #                                             #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
+    # sketch_col = 180000                         # number of columns for the sketch matrix
+    # sketch_row = 1                              # number of rows for the sketch matrix
+    # k = 25000                                   # top-k k value for any compression scheme  
+    # data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
+    # folder = 'ringallreduce/debug'                    # folder to save the results
 
 
     
@@ -307,7 +307,7 @@ if __name__ == '__main__':
 
     # Initialize GNS Estimator
     # 0.999 appears to works best on both MNIST
-    # 0.99 appears to work better on CIFAR10
+    # 0.99 appears to work better on CIFAR10 (less gradient noise due to momentum etc.)
     gns_est = GNSEstimator(ema_decay=0.99)
     # --------------------------
 

@@ -39,6 +39,16 @@ GRID = [
     # (4096, 512, 8000, [0.1, 0.15, 0.2]),
     # (8192, 1024, 8000, [0.15, 0.2]),
     # (16384, 2048, 8000, [0.15, 0.2])
+
+    # Runs needed for better GNS plots (EWMA beta = 0.99 rather than 0.999)
+    # (1024, 128, 10000, [0.1]),
+    # (4096, 512, 8000, [0.1]),
+    # (8192, 1024, 8000, [0.15]),
+    # (16384, 2048, 8000, [0.15]),
+    # (512, 64, 14000, [0.075]),
+    # (256, 32, 14000, [0.075]),
+    # (128, 16, 14000, [0.08]),
+    
     
 ]
 
@@ -50,7 +60,7 @@ OPTIMISER = "momentum"
 LR_TYPE = 'acc_decay'
 SCRIPT_NAME = "ringallreduce_sim.py"
 NUM_CLIENTS = 8  # This stays fixed, modelling a DDP scenario where it is prohibitive to train on 1 node
-TARGET_FOLDER = "ringallreduce/grid_search"
+TARGET_FOLDER = "ringallreduce/grid_search/gns0.99"
 
 def format_time(seconds):
     if seconds < 60:

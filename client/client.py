@@ -76,6 +76,7 @@ class Client:
 
         pytorch_total_params = sum(p.numel() for p in self.net.parameters())
         self.pytorch_total_params = pytorch_total_params
+        # print(f"Gradient Length (Total Params): {self.pytorch_total_params}")
         self.initial_params = torch.zeros(pytorch_total_params, device=self.device)
 
         # Loss criterion and learning rate

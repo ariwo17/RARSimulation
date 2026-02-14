@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-DATASET = "MNIST"
+DATASET = "CIFAR10"
 DATASET_AFFIX = DATASET.lower()
 JSON_PATH = f"data/pareto_data_{DATASET_AFFIX}.json"
 
@@ -42,7 +42,7 @@ def plot_optimal_lr(json_path=JSON_PATH):
     # Explicit Ticks for Clarity
     plt.xticks(res_df['bs'], res_df['bs'])
     
-    output_file = f"plots/optimal_lr_scaling_{DATASET}.png"
+    output_file = f"plots/optimal_lr_scaling_{DATASET_AFFIX}.png"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     plt.savefig(output_file, dpi=300)
     print(f"Plot saved to {output_file}")
