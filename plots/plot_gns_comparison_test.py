@@ -10,9 +10,9 @@ from scipy.stats import binned_statistic
 DEFAULT_SAVE_DIR = "plots/gns_plots"
 
 # Milestones for CIFAR10
-# MILESTONES = [50, 60, 70, 80, 85, 90, 92, 95, 96, 97]
+MILESTONES = [50, 60, 70, 80, 85]
 # Milestones for MNIST
-MILESTONES = [70, 90, 99, 99.5, 99.8]
+# MILESTONES = [70, 80, 90, 95, 97, 98, 99]
 
 def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir=DEFAULT_SAVE_DIR, filename="gns_comparison", x_min=None, x_max=None):
     """
@@ -60,6 +60,13 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
             # SMOOTHING (alpha=0.5)
             if mode == 'train_acc':
                 acc_aligned = pd.Series(acc_aligned).ewm(alpha=0.5).mean().values
+            if mode == 'test_acc':
+                ## In the case of MNIST, the EWMA for GNS made test accuracy lag behind
+                ## the train accuracy GNS a lot, so we had to run a separate run with
+                ## beta = 0.99 rather than 0.999. To correct this variance, we use an EWMA
+                ## of alpha = 0.1. Otherwise, if it's CIFAR10, there is no need in using EWMA.
+                # acc_aligned = pd.Series(acc_aligned).ewm(alpha=0.1).mean().values
+                acc_aligned = pd.Series(acc_aligned).ewm(alpha=1).mean().values
 
             if np.max(acc_aligned) > 1.0: acc_aligned /= 100.0
             
@@ -157,7 +164,7 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Noise Scale", fontsize=12)
     # ax.set_title("Sketched GNS vs Critical Batch Size (CIFAR10)", fontsize=14)
-    ax.set_title("Simple Noise Scale vs Critical Batch Size (MNIST)", fontsize=14)
+    ax.set_title("Simple Noise Scale vs Critical Batch Size (CIFAR10)", fontsize=14)
     ax.grid(True, which='major', alpha=0.5)
     ax.grid(True, which='minor', alpha=0.2)
     ax.legend(fontsize=9, loc='upper left')
@@ -170,8 +177,9 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
 if __name__ == "__main__":
     
     # Baseline GNS file
-    # baseline_file = "results/ringallreduce/grid_search/gns0.99/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_acc_decay_momentum_1_10.pt"
-    baseline_file = "results/ringallreduce/grid_search/gns0.999/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt"
+    baseline_file = "results/ringallreduce/grid_search/gns0.99/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_acc_decay_momentum_1_10.pt"
+    # baseline_file = "results/ringallreduce/grid_search/gns0.99/results_MNIST_ComEffFlPaperCnnModel_none_14000_iid_8_16_0.05_const_sgd_1_10.pt"
+    # baseline_file = "results/ringallreduce/grid_search/gns0.999/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt"
 
     # Sketched GNS directory prefix
     sketch_dir = "results/ringallreduce/sketched_gns" 
@@ -219,17 +227,17 @@ if __name__ == "__main__":
     # ]
     
     # Critical batch size ground truth results
-    bcrit_file = "data/bcrit_results_mnist.json"
-    # bcrit_file = "data/bcrit_results_cifar10.json"
+    # bcrit_file = "data/bcrit_results_mnist_test.json"
+    bcrit_file = "data/bcrit_results_cifar10_test.json"
 
     # Run Plotter
     plot_gns_comparison(
         experiments=experiments_list,
-        mode='train_acc',
+        mode='test_acc',
         bcrit_file=bcrit_file,
-        x_min=70, 
-        x_max=99.9,
-        # x_min=50, 
-        # x_max=97,
-        filename="mnist_gns_vs_bcrit_16384_0.075"
+        # x_min=70, 
+        # x_max=99,
+        x_min=50, 
+        x_max=85,
+        filename="cifar10_gns_vs_bcrit_512_0.075_test"
     )

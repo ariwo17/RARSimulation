@@ -5,14 +5,17 @@ import torch
 import numpy as np
 
 # CONFIG
-RESULTS_DIR = "results/ringallreduce/grid_search"
-OUTPUT_FILE = "data/pareto_data_cifar10.json"
+RESULTS_DIR = "results/ringallreduce/grid_search/gns0.999"
+OUTPUT_FILE = "data/pareto_data_cifar10_test.json"
 DATASET = "CIFAR10"
-# 0.06 worked best for MNIST, 0.09 better for CIFAR10 since results are less noisy
-SMOOTHING_ALPHA = 0.09
-TARGETS = [50, 60, 70, 80, 85, 90, 95, 96, 97]
-# [70, 80, 90, 95, 97, 98, 99, 99.3, 99.5, 99.8] for MNIST
-# [50, 60, 70, 80, 85, 90, 95, 96, 97] for CIFAR10
+# FOR TRAIN, 0.06 worked best for MNIST, 0.09 better for CIFAR10 since results are less noisy
+# FOR TEST, 0.7 worked best for MNIST, 0.05 better for CIFAR10. Not entirely sure why.
+SMOOTHING_ALPHA = 0.05
+TARGETS = [50, 60, 70, 80, 85]
+# [70, 80, 90, 95, 97, 98, 99, 99.3, 99.5, 99.8] for MNIST train
+# [50, 60, 70, 80, 85, 90, 95, 96, 97] for CIFAR10 train
+# [70, 80, 90, 95, 97, 98, 99, 99.3] for MNIST test
+# [50, 60, 70, 80, 85] for CIFAR10 test
 
 def process_files():
     results_map = {}
@@ -48,11 +51,11 @@ def process_files():
             
             df = pd.DataFrame({
                 'round': res['rounds'],
-                'train_acc': res['trainACCs']
+                'test_acc': res['testACCs']
             })
             
             # Smoothing
-            df['smooth_acc'] = df['train_acc'].ewm(alpha=SMOOTHING_ALPHA).mean()
+            df['smooth_acc'] = df['test_acc'].ewm(alpha=SMOOTHING_ALPHA).mean()
             
             # Find Crossing Points with LINEAR INTERPOLATION
             for target in TARGETS:

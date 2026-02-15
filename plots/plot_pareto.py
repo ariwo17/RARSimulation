@@ -7,12 +7,14 @@ import matplotlib # Added for new colormap API
 from scipy.optimize import curve_fit
 
 # CONFIG
-INPUT_FILE = "data/pareto_data_cifar10.json"
-BCRIT_OUTPUT_FILE = "data/bcrit_results_cifar10.json"
-PLOT_OUTPUT = "plots/pareto_frontiers_cifar10.png"
+INPUT_FILE = "data/pareto_data_cifar10_test.json"
+BCRIT_OUTPUT_FILE = "data/bcrit_results_cifar10_test.json"
+PLOT_OUTPUT = "plots/pareto_frontiers_cifar10_test.png"
 
 # --- MANUAL CONTROL ---
 IGNORE_POINTS = [
+    # (70, 16384),
+    # (99.5, 128),
     # (50, 16384),
     # (50, 8192),
     # (60, 16384),
@@ -44,7 +46,7 @@ def plot_pareto_fronts():
 
     bcrit_data = []
 
-    plt.figure(figsize=(12, 10)) # Increased size for better visibility
+    plt.figure(figsize=(10, 8))
     
     targets = sorted(df['target'].unique())
     cmap = matplotlib.colormaps['viridis'].resampled(len(targets))
@@ -67,7 +69,7 @@ def plot_pareto_fronts():
         all_examples.extend(examples_data)
         
         color = cmap(i)
-        plt.scatter(steps_data, examples_data, color=color, alpha=0.7, s=40, label=f"{target}% Acc")
+        plt.scatter(steps_data, examples_data, color=color, alpha=0.7, s=40, label=f"{target}%")
 
         if len(subset) >= 3:
             try:
@@ -117,10 +119,10 @@ def plot_pareto_fronts():
 
     plt.xlabel('Optimization Steps (S)', fontsize=14)
     plt.ylabel('Examples Processed (E)', fontsize=14)
-    plt.title('Pareto Frontiers (Compute vs Time)', fontsize=16)
+    plt.title('Pareto Frontiers (CIFAR10)', fontsize=16)
     plt.grid(True, which="both", ls="-", alpha=0.2)
     
-    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', title="Target Accuracy", fontsize=10)
+    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', title="Test Accuracy", fontsize=10)
     plt.tight_layout()
     
     os.makedirs(os.path.dirname(PLOT_OUTPUT), exist_ok=True)

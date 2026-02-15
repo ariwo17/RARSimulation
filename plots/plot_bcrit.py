@@ -5,8 +5,8 @@ import pandas as pd
 import matplotlib.ticker as ticker
 
 # CONFIG
-INPUT_FILE = "data/bcrit_results_cifar10.json"
-PLOT_OUTPUT = "plots/critical_batch_size_cifar10.png"
+INPUT_FILE = "data/bcrit_results_cifar10_test.json"
+PLOT_OUTPUT = "plots/critical_batch_size_cifar10_test.png"
 
 def plot_bcrit():
     if not os.path.exists(INPUT_FILE):
@@ -48,7 +48,12 @@ def plot_bcrit():
 
     # FORMATTING TICKS AS ACCURACY
     # We manually set ticks at key Accuracy milestones so the axis reads as Accuracy.
-    acc_ticks = [50, 60, 70, 80, 85, 90, 95, 96, 97]
+    acc_ticks = [50, 60, 70, 80, 85]
+    # [70, 80, 90, 95, 97, 98, 99, 99.3, 99.5, 99.8] for MNIST train
+    # [50, 60, 70, 80, 85, 90, 95, 96, 97] for CIFAR10 train
+    # [70, 80, 90, 95, 97, 98, 99, 99.3] for MNIST test
+    # [50, 60, 70, 80, 85] for CIFAR10 test
+    
     # Convert these targets to the plotting coordinate system (Error Rate)
     locs = [100.0 - t for t in acc_ticks]
     
@@ -58,9 +63,9 @@ def plot_bcrit():
     plt.gca().xaxis.set_minor_formatter(ticker.NullFormatter())
 
     # LABELS
-    plt.xlabel('Target Train Accuracy (%)', fontsize=12)
+    plt.xlabel('Train Accuracy (%)', fontsize=12)
     plt.ylabel('Critical Batch Size ($B_{crit}$)', fontsize=12)
-    plt.title('Critical Batch Size', fontsize=14)
+    plt.title('Critical Batch Size (CIFAR10)', fontsize=14)
     
     plt.grid(True, which="major", ls="-", alpha=0.4)
     plt.grid(True, which="minor", ls=":", alpha=0.2)
