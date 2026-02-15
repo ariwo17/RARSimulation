@@ -9,7 +9,7 @@ from itertools import cycle
 
 # Local imports
 from . import model_factories
-from compressors.sparsification import VectorTopK, ChunkTopK
+from compressors.sparsification import VectorTopK, ChunkTopK, RandomK
 from compressors.countsketch import CountSketchSender, CountSketchReceiver
 
 ###############################################################
@@ -97,6 +97,8 @@ class Client:
 
         if self.compression_scheme == 'none':
             pass
+        elif self.compression_scheme == 'randomk':
+            self.compressor = RandomK(self.device)
         elif self.compression_scheme == 'vector_topk':
             self.compressor = VectorTopK(self.device)
         elif self.compression_scheme == 'chunk_topk_recompress':
@@ -307,6 +309,8 @@ class Client:
 
         if self.compression_scheme == 'none':
             return vec
+        elif self.compression_scheme == 'randomk':
+            return self.compressor.compress(data, self.k_value)
         elif self.compression_scheme == 'vector_topk':
             return self.compressor.compress(data, self.k_value)
         elif self.compression_scheme == 'chunk_topk_recompress':
