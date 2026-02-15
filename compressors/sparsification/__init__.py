@@ -3,6 +3,27 @@ import torch
 # for testing
 import numpy as np
 
+class RandomK():
+    def __init__(self, device='cpu'):
+        self.device = device
+
+    def compress(self, vec, k=100):
+        d = vec.numel()
+        # Ensure k does not exceed vector size
+        k = min(k, d)
+        
+        # Generate random indices without replacement
+        indices = torch.randperm(d, device=self.device)[:k]
+        
+        # Create sparse vector
+        sparse_vec = torch.zeros_like(vec)
+        
+        # Unbiased scaling: (d/k) * value
+        # This ensures E[compressed] = original
+        sparse_vec[indices] = vec[indices] * (d / k)
+        
+        return sparse_vec
+
 class VectorTopK():
     def __init__(self, device='cpu'):
         self.device = device
