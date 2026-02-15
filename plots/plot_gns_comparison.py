@@ -156,8 +156,8 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
 
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Noise Scale", fontsize=12)
-    # ax.set_title("Sketched GNS vs Critical Batch Size (CIFAR10)", fontsize=14)
-    ax.set_title("Simple Noise Scale vs Critical Batch Size (MNIST)", fontsize=14)
+    ax.set_title("Sparsified GNS vs Critical Batch Size (MNIST)", fontsize=14)
+    # ax.set_title("Simple Noise Scale vs Critical Batch Size (MNIST)", fontsize=14)
     ax.grid(True, which='major', alpha=0.5)
     ax.grid(True, which='minor', alpha=0.2)
     ax.legend(fontsize=9, loc='upper left')
@@ -173,13 +173,15 @@ if __name__ == "__main__":
     # baseline_file = "results/ringallreduce/grid_search/gns0.99/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_acc_decay_momentum_1_10.pt"
     baseline_file = "results/ringallreduce/grid_search/gns0.999/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt"
 
-    # Sketched GNS directory prefix
-    sketch_dir = "results/ringallreduce/sketched_gns" 
+    # Compressed GNS directory prefixes
+    sketch_dir = "results/ringallreduce/sketched_gns"
+    sparsification_dir = "results/ringallreduce/sparsified_gns"
+    debug_dir = "results/ringallreduce/debug"
     
     experiments_list = [
         # Baseline GNS
-        {'path': baseline_file, 'label': '$B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
-        
+        # {'path': baseline_file, 'label': 'Baseline $B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
+
         # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c2451621.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=50%)', 'color': 'brown', 'linestyle': '-'},
 
@@ -200,23 +202,33 @@ if __name__ == "__main__":
     ]
 
 
-    # experiments_list = [
-    #     # Baseline GNS
-    #     {'path': baseline_file, 'label': '$B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
+    experiments_list = [
+        # Baseline GNS
+        {'path': baseline_file, 'label': 'Baseline $B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
         
-    #     # The Sketched GNS runs
-    #     {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c220000.pt"), 
-    #      'label': 'Sketched $B_{simple}$ ($\delta$=25%)', 'color': 'darkgreen', 'linestyle': '-'},
+        # The Sparsified GNS runs
+        {'path': os.path.join(debug_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_14000_iid_8_16_0.05_const_sgd_1_10_k438469.pt"), 
+         'label': 'Sparsified $B_{simple}$ ($\delta$=50%)', 'color': 'brown', 'linestyle': '-'},
 
-    #     {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c44000.pt"), 
-    #      'label': 'Sketched $B_{simple}$ ($\delta$=5%)', 'color': 'mediumseagreen', 'linestyle': '-'},
+        {'path': os.path.join(debug_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_14000_iid_8_16_0.05_const_sgd_1_10_k250000.pt"), 
+         'label': 'Sparsified $B_{simple}$ ($\delta$=28.5%)', 'color': 'cyan', 'linestyle': '-'},
+         
+        {'path': os.path.join(debug_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_14000_iid_8_16_0.05_const_sgd_1_10_k25000.pt"), 
+         'label': 'Sparsified $B_{simple}$ ($\delta$=2.85%)', 'color': 'magenta', 'linestyle': '-'},
 
-    #     {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c8800.pt"), 
-    #      'label': 'Sketched $B_{simple}$ ($\delta$=1%)', 'color': 'purple', 'linestyle': '-'},
+        # # The Sketched GNS runs
+        # {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c220000.pt"), 
+        #  'label': 'Sketched $B_{simple}$ ($\delta$=25%)', 'color': 'darkgreen', 'linestyle': '-'},
 
-    #     {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c2000.pt"), 
-    #      'label': 'Sketched $B_{simple}$ ($\delta$=0.2%)', 'color': 'red', 'linestyle': '-'},
-    # ]
+        # {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c44000.pt"), 
+        #  'label': 'Sketched $B_{simple}$ ($\delta$=5%)', 'color': 'mediumseagreen', 'linestyle': '-'},
+
+        # {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c8800.pt"), 
+        #  'label': 'Sketched $B_{simple}$ ($\delta$=1%)', 'color': 'purple', 'linestyle': '-'},
+
+        # {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c2000.pt"), 
+        #  'label': 'Sketched $B_{simple}$ ($\delta$=0.2%)', 'color': 'red', 'linestyle': '-'},
+    ]
     
     # Critical batch size ground truth results
     bcrit_file = "data/bcrit_results_mnist.json"
@@ -231,5 +243,5 @@ if __name__ == "__main__":
         x_max=99.9,
         # x_min=50, 
         # x_max=97,
-        filename="mnist_gns_vs_bcrit_16384_0.075"
+        filename="mnist_gns_vs_bcrit_vs_sparsified"
     )
