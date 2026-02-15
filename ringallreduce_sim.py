@@ -143,13 +143,13 @@ if __name__ == '__main__':
     # dataset = 'MNIST'                         # dataset to use
     # error_feedback = False                      # -- to be implemented --
     # nbits = 1.0                                 # number of bits per coordinate for compression scheme
-    # compression_scheme = 'none'    # compression/decompression scheme ['none', 'randomk', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    # compression_scheme = 'randomk'    # compression/decompression scheme ['none', 'randomk', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
     #                                             #                      'csh', 'cshtopk_actual', 'cshtopk_estimate']
     # sketch_col = 180000                         # number of columns for the sketch matrix
     # sketch_row = 1                              # number of rows for the sketch matrix
-    # k = 25000                                   # top-k k value for any compression scheme  
+    # k = 250000                                   # top-k k value for any compression scheme  
     # data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
-    # folder = 'ringallreduce/grid_search/gns0.99'                    # folder to save the results
+    # folder = 'ringallreduce/debug'                    # folder to save the results
 
 
     
@@ -483,9 +483,18 @@ if __name__ == '__main__':
 
             # CASE 3: Standard / Vector TopK / RandomK
             else:
-                # vector_topk returns sparse, none returns dense.
+                # vector_topk and randomk return sparse, none returns dense.
                 # Both match their global counterparts naturally.
-                local_sq_norms.append(torch.linalg.vector_norm(raw_grad) ** 2)
+                sq_norm = torch.linalg.vector_norm(raw_grad) ** 2
+
+                # BIAS CORRECTION:
+                # If using RandomK, divide by (d/k) to remove the variance inflation.
+                # This allows GNS to track the true SGD noise level.
+                if compression_scheme == 'randomk':
+                    d = raw_grad.numel()
+                    sq_norm = sq_norm / (d / k)
+               
+                local_sq_norms.append(sq_norm)
         
         avg_small_sq_norm = torch.stack(local_sq_norms).mean().item()
 
@@ -507,6 +516,21 @@ if __name__ == '__main__':
             global_grad_mean = global_grad_vec / num_clients
             big_sq_norm = (torch.linalg.vector_norm(global_grad_mean) ** 2).item()
 
+            # BIAS CORRECTION (GLOBAL):
+            if compression_scheme == 'randomk':
+                d = global_grad_mean.numel()
+                scaling_factor = d / k
+                
+                # Calculate the noise variance present in the global average
+                # Variance = (1/N) * (d/k - 1) * Local_Norm
+                noise_variance = (avg_small_sq_norm * (scaling_factor - 1)) / num_clients
+                
+                # Subtract the noise to uncover the signal
+                big_sq_norm = big_sq_norm - noise_variance
+                
+                # Clip to prevent negative values (numerical instability)
+                if big_sq_norm < 0:
+                    big_sq_norm = 1e-9
 
         # Update Estimator
         gns_est.update(
