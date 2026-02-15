@@ -310,7 +310,7 @@ class Client:
         if self.compression_scheme == 'none':
             return vec
         elif self.compression_scheme == 'randomk':
-            return self.compressor.compress(data, self.k_value)
+            return self.compressor.compress(vec, self.k_value)
         elif self.compression_scheme == 'vector_topk':
             return self.compressor.compress(data, self.k_value)
         elif self.compression_scheme == 'chunk_topk_recompress':
