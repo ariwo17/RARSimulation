@@ -52,7 +52,8 @@ def get_suffix(args):
 
     # Append K value for TopK variants
     # Note: We also add K for cshtopk variants since they use K as well
-    if args['compression_scheme'] in ['vector_topk', 'chunk_topk_recompress', 
+    if args['compression_scheme'] in ['vector_topk', 'randomk',
+                                      'chunk_topk_recompress', 
                                       'chunk_topk_single', 'cshtopk_estimate', 
                                       'cshtopk_actual']:
         suffix += '_k{}'.format(args['k'])
@@ -115,7 +116,7 @@ if __name__ == '__main__':
     dataset = args.dataset                            # dataset to use
     data_per_client = args.data_per_client            # data distribution scheme ['sequential', 'label_per_client', 'iid']
     folder = args.folder                              # folder to save the results
-    compression_scheme = args.compression_scheme      # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    compression_scheme = args.compression_scheme      # compression/decompression scheme ['none', 'randomk', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
                                                       #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
     nbits = args.nbits                                # number of bits per coordinate for compression scheme
     k = args.k                                        # top-k k value for any compression scheme
@@ -132,23 +133,23 @@ if __name__ == '__main__':
     # num_rounds = 14000                           # number of communication rounds
     # num_clients = 8                           # number of clients
     # test_every = 5                            # test every X rounds
-    # target_acc = 97                           # target accuracy threshold for early stopping
-    # lr = 0.1                                   # learning rate for the model
-    # lr_type = 'acc_decay'                           # learning rate type ['const', 'step_decay', 'acc_decay', 'exp_decay']
-    # optim = 'momentum'                               # optimiser method ['sgd', 'momentum', 'adam']
+    # target_acc = 99.9                           # target accuracy threshold for early stopping
+    # lr = 0.05                                   # learning rate for the model
+    # lr_type = 'const'                           # learning rate type ['const', 'step_decay', 'acc_decay', 'exp_decay']
+    # optim = 'sgd'                               # optimiser method ['sgd', 'momentum', 'adam']
     # client_train_steps = 1                      # local training steps per client
-    # client_batch_size = 64                     # batch size of a client (for both train and test)
-    # net = 'ResNet9'                             # CNN model to use
-    # dataset = 'CIFAR10'                         # dataset to use
+    # client_batch_size = 16                     # batch size of a client (for both train and test)
+    # net = 'ComEffFlPaperCnnModel'                             # CNN model to use
+    # dataset = 'MNIST'                         # dataset to use
     # error_feedback = False                      # -- to be implemented --
     # nbits = 1.0                                 # number of bits per coordinate for compression scheme
-    # compression_scheme = 'none'    # compression/decompression scheme ['none', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
-    #                                             #                                   'csh', 'cshtopk_actual', 'cshtopk_estimate']
+    # compression_scheme = 'none'    # compression/decompression scheme ['none', 'randomk', 'vector_topk', 'chunk_topk_recompress', 'chunk_topk_single', 
+    #                                             #                      'csh', 'cshtopk_actual', 'cshtopk_estimate']
     # sketch_col = 180000                         # number of columns for the sketch matrix
     # sketch_row = 1                              # number of rows for the sketch matrix
     # k = 25000                                   # top-k k value for any compression scheme  
     # data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
-    # folder = 'ringallreduce/debug'                    # folder to save the results
+    # folder = 'ringallreduce/grid_search/gns0.99'                    # folder to save the results
 
 
     
@@ -308,11 +309,11 @@ if __name__ == '__main__':
     # Initialize GNS Estimator
     # 0.999 appears to works best on both MNIST
     # 0.99 appears to work better on CIFAR10 (less gradient noise due to momentum etc.)
-    gns_est = GNSEstimator(ema_decay=0.99)
+    gns_est = GNSEstimator(ema_decay=0.999)
     # --------------------------
 
     # =========================================================================
-    #  NEW: Training Accuracy-based Step Decay Setup following McCandlish Paper
+    #  Training Accuracy-based Step Decay Setup following McCandlish Paper
     # =========================================================================
     lr_milestones = [90.0] # The target accuracy targets after which LR is decayed
     current_lr_stage = 0
@@ -480,7 +481,7 @@ if __name__ == '__main__':
                 top_k_values, _ = torch.topk(dense_vec.abs(), k=k)
                 local_sq_norms.append(torch.norm(top_k_values)**2)
 
-            # CASE 3: Standard / Vector TopK
+            # CASE 3: Standard / Vector TopK / RandomK
             else:
                 # vector_topk returns sparse, none returns dense.
                 # Both match their global counterparts naturally.
