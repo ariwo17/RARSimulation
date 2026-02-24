@@ -13,31 +13,31 @@ OUTPUT_PREFIX = f"{DATASET_PREFIX}_efficiency_csh_comparison"
 # Format: (FILE_PATH, LEGEND_LABEL)
 FILES_TO_COMPARE = [
     (
-        "results/ringallreduce/grid_search/gns0.99/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.1_acc_decay_momentum_1_10.pt", 
+        "results/ringallreduce/grid_search/cifar10const/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_const_momentum_1_10.pt", 
         "Baseline SGD (No compression)"
     ),
     (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c2451621.pt", 
+        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c2451621.pt", 
         "Count Sketch (50$\%$ compression)"
     ),
     (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c1225810.pt", 
+        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c1225810.pt", 
         "Count Sketch (25$\%$ compression)"
     ),
     (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c490324.pt", 
+        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c490324.pt", 
         "Count Sketch (10$\%$ compression)"
     ),
     (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c245162.pt", 
+        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c245162.pt", 
         "Count Sketch (5$\%$ compression)"
     ),
     (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c49032.pt", 
+        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c49032.pt", 
         "Count Sketch (1$\%$ compression)"
     ),
     (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c9806.pt", 
+        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c9806.pt", 
         "Count Sketch (0.2$\%$ compression)"
     ),
     # (
@@ -64,10 +64,50 @@ FILES_TO_COMPARE = [
     #     "results/ringallreduce/sketched_gns/results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c8800.pt", 
     #     "Count Sketch (1$\%$ compression)"
     # ),
-    # # (
-    # #     "results/ringallreduce/sketched_gns/results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c2000.pt", 
-    # #     "Count Sketch (0.2$\%$ compression)"
-    # # ),
+    # (
+    #     "results/ringallreduce/sketched_gns/results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c2000.pt", 
+    #     "Count Sketch (0.2$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k438469.pt", 
+    #     "Random-K (50$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k219234.pt", 
+    #     "Random-K (25$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k87693.pt", 
+    #     "Random-K (10$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k43846.pt", 
+    #     "Random-K (5$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k26308.pt", 
+    #     "Random-K (3$\%$ compression)"
+    # ),
+    #     (
+    #     "results/ringallreduce/sparsified_gns/results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k21923.pt", 
+    #     "Random-K (2.5$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k2451621.pt", 
+    #     "Random-K (50$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k1225810.pt", 
+    #     "Random-K (25$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k490324.pt", 
+    #     "Random-K (10$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sparsified_gns/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k245162.pt", 
+    #     "Random-K (5$\%$ compression)"
+    # )
 ]
 
 def load_data(file_path):
@@ -169,10 +209,7 @@ def run_comparison():
         if 'time' in results:
             t = results['time']
             # Dynamic unit adjustment for readability
-            if len(t) > 0 and t[-1] > 3600:
-                t = [x/3600 for x in t]
-                time_unit = "Hours"
-            elif len(t) > 0 and t[-1] > 60:
+            if len(t) > 0 and t[-1] > 60:
                 t = [x/60 for x in t]
                 time_unit = "Minutes"
             
