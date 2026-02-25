@@ -13,6 +13,8 @@ from client.client import Client
 
 from utils.gns_utils import GNSEstimator, compute_exact_gns
 
+from utils.adaptive_k import AdaptiveKRate
+
 from compressors.countsketch import CountSketchReceiver, CountSketchSender
 
 import argparse
@@ -49,10 +51,14 @@ def get_suffix(args):
     # Append Sketch Dimensions for CSH variants
     if args['compression_scheme'] in ['csh', 'cshtopk_estimate', 'cshtopk_actual']:
         suffix += '_r{}_c{}'.format(args['sketch_row'], args['sketch_col'])
-
+    # Adaptive-K mode
+    if args.get('adaptive_k', False):
+        # Format milestones from "0.0,50.0" to "0.0_50.0" for safe filenames
+        m_str = str(args.get('adaptive_milestones', '')).replace(',', '_')
+        suffix += f'_adaptiveK_a{args["alpha"]}_m{m_str}'
     # Append K value for TopK variants
     # Note: We also add K for cshtopk variants since they use K as well
-    if args['compression_scheme'] in ['vector_topk', 'randomk',
+    elif args['compression_scheme'] in ['vector_topk', 'randomk',
                                       'chunk_topk_recompress', 
                                       'chunk_topk_single', 'cshtopk_estimate', 
                                       'cshtopk_actual']:
@@ -97,6 +103,11 @@ if __name__ == '__main__':
     parser.add_argument('--sketch_row', type=int, default=1)
     parser.add_argument('--error_feedback', action='store_true')
 
+    # Adaptive Random-K Compression Scheduling
+    parser.add_argument('--adaptive_k', action='store_true', help="Enable adaptive Random-K using GNS")
+    parser.add_argument('--alpha', type=float, default=0.01, help="Tolerance level for compression noise")
+    parser.add_argument('--adaptive_milestones', type=str, default='0.0,60.0,90.0,99.5', help="Accuracy milestones for K adaptation")
+
     args = parser.parse_args()
 
     # Map args to variables
@@ -109,7 +120,7 @@ if __name__ == '__main__':
     lr = args.lr                                      # learning rate for the model
     lr_type = args.lr_type                            # learning rate type ['const', 'step_decay', 'acc_decay', 'exp_decay']
     optim = args.optim                                # optimiser method ['sgd', 'momentum', 'adam']
-    lr_milestones = [float(x) for x in args.milestones.split(',')]
+    lr_milestones = [float(x) for x in args.milestones.split(',')] # milestones for LR decay
     client_train_steps = args.client_train_steps      # local training steps per client
     client_batch_size = args.client_batch_size        # batch size of a client (for both train and test)
     net = args.net                                    # CNN model to use
@@ -123,6 +134,9 @@ if __name__ == '__main__':
     sketch_col = args.sketch_col                      # number of columns for the sketch matrix
     sketch_row = args.sketch_row                      # number of rows for the sketch matrix
     error_feedback = args.error_feedback              # -- to be implemented --
+    adaptive_k = args.adaptive_k                      # enable adaptive Random-K compression using GNS
+    alpha = args.alpha                                # tolerance level for compression noise
+    adaptive_milestones = [float(x) for x in args.adaptive_milestones.split(',')] # milestones for RandomK compression scheduling
 
     # ==============================================================
     # Uncomment these if you want to run the simulation standalone #
@@ -150,7 +164,9 @@ if __name__ == '__main__':
     # k = 250000                                   # top-k k value for any compression scheme  
     # data_per_client = 'iid'              # data distribution scheme ['sequential', 'label_per_client', 'iid']
     # folder = 'ringallreduce/debug'                    # folder to save the results
-
+    # adaptive_k = False                      # enable adaptive Random-K compression using GNS
+    # alpha = 0.001                                # tolerance level for compression noise
+    # adaptive_milestones = [0, 0.5, 0.95]         # milestones for RandomK compression scheduling
 
     
     args_for_suffix = {
@@ -168,7 +184,10 @@ if __name__ == '__main__':
         'nbits': nbits,
         'k': k,
         'sketch_col': sketch_col,
-        'sketch_row': sketch_row
+        'sketch_row': sketch_row,
+        'adaptive_k': adaptive_k,
+        'alpha': alpha,
+        'adaptive_milestones': args.adaptive_milestones
     }
 
 
@@ -309,7 +328,7 @@ if __name__ == '__main__':
     # Initialize GNS Estimator
     # 0.999 appears to works best on both MNIST
     # 0.99 appears to work better on CIFAR10 (less gradient noise due to momentum etc.)
-    gns_est = GNSEstimator(ema_decay=0.999)
+    gns_est = GNSEstimator(ema_decay=0.99)
     # --------------------------
 
     # =========================================================================
@@ -319,6 +338,14 @@ if __name__ == '__main__':
     current_lr_stage = 0
     current_lr = lr  # Initialize with the starting LR
     # ===============================================
+
+    # ==============================
+    # ADAPTIVE K INITIALISATION
+    # ==============================
+    current_k = k
+    if adaptive_k:
+        k_adapter = AdaptiveKRate(d=clients[0].pytorch_total_params, alpha=alpha, milestones=adaptive_milestones)
+        results['k_history'] = []
 
     for round in range(start_round + 1, start_round + 1 + num_rounds):
         scatter_data_sent = 0
@@ -492,7 +519,7 @@ if __name__ == '__main__':
                 # This allows GNS to track the true SGD noise level.
                 if compression_scheme == 'randomk':
                     d = raw_grad.numel()
-                    sq_norm = sq_norm / (d / k)
+                    sq_norm = sq_norm / (d / current_k)
                
                 local_sq_norms.append(sq_norm)
         
@@ -519,7 +546,7 @@ if __name__ == '__main__':
             # BIAS CORRECTION (GLOBAL):
             if compression_scheme == 'randomk':
                 d = global_grad_mean.numel()
-                scaling_factor = d / k
+                scaling_factor = d / current_k
                 
                 # Calculate the noise variance present in the global average
                 # Variance = (1/N) * (d/k - 1) * Local_Norm
@@ -563,8 +590,26 @@ if __name__ == '__main__':
         train_acc = 100. * sum(train_correct[-n:]) / sum(train_total[-n:])
         sma_train_acc = 100. * sum(train_correct[-n*10:]) / sum(train_total[-n*10:])
 
+        # ================================
+        #  Accuracy-based K-Adaptation
+        # ================================
+        if adaptive_k:
+            # smoothed_GNS is extracted natively from gns_est a few lines above
+            new_k, updated = k_adapter.check_and_get_k(sma_train_acc, smoothed_GNS, current_k)
+            
+            if updated:
+                print(f"\n[Round {round}] ACCURACY HIT {sma_train_acc:.2f}%. ADAPTING K to {new_k} (GNS: {smoothed_GNS:.2f}).")
+                current_k = new_k
+                
+                # Update All Clients dynamically
+                for key in clients:
+                    clients[key].k_value = current_k
+
+            # Save to results dictionary so that we can track how K changed over time
+            results['k_history'].append(current_k)
+
         # ===============================================
-        #  NEW: Accuracy-based Step Decay Setup
+        #  Accuracy-based Step Decay Setup
         # ===============================================
         if lr_type == 'acc_decay':
             # Only check if we have milestones left
