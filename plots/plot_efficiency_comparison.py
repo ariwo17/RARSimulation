@@ -4,42 +4,46 @@ import pandas as pd
 import os
 
 # --- CONFIGURATION ---
-METRIC_NAME = "trainACCs" 
+METRIC_NAME = "trainACCs"
 SMOOTHING_ALPHA = 0.3
 DATASET = "CIFAR10"
 DATASET_PREFIX = DATASET.lower()
-OUTPUT_PREFIX = f"{DATASET_PREFIX}_efficiency_csh_comparison"
+OUTPUT_PREFIX = f"{DATASET_PREFIX}_efficiency_adaptivek_vs_randomk_zoomed_comparison"
+ZOOMED_IN = True
+
+if ZOOMED_IN:
+    SMOOTHING_ALPHA = 0.1
 
 # Format: (FILE_PATH, LEGEND_LABEL)
 FILES_TO_COMPARE = [
-    (
-        "results/ringallreduce/grid_search/cifar10const/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_const_momentum_1_10.pt", 
-        "Baseline SGD (No compression)"
-    ),
-    (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c2451621.pt", 
-        "Count Sketch (50$\%$ compression)"
-    ),
-    (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c1225810.pt", 
-        "Count Sketch (25$\%$ compression)"
-    ),
-    (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c490324.pt", 
-        "Count Sketch (10$\%$ compression)"
-    ),
-    (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c245162.pt", 
-        "Count Sketch (5$\%$ compression)"
-    ),
-    (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c49032.pt", 
-        "Count Sketch (1$\%$ compression)"
-    ),
-    (
-        "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c9806.pt", 
-        "Count Sketch (0.2$\%$ compression)"
-    ),
+    # (
+    #     "results/ringallreduce/grid_search/cifar10const/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_const_momentum_1_10.pt", 
+    #     "Baseline SGD (No compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c2451621.pt", 
+    #     "Count Sketch (50$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c1225810.pt", 
+    #     "Count Sketch (25$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c490324.pt", 
+    #     "Count Sketch (10$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c245162.pt", 
+    #     "Count Sketch (5$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c49032.pt", 
+    #     "Count Sketch (1$\%$ compression)"
+    # ),
+    # (
+    #     "results/ringallreduce/sketched_gns/results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c9806.pt", 
+    #     "Count Sketch (0.2$\%$ compression)"
+    # ),
     # (
     #     "results/ringallreduce/grid_search/gns0.999/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt", 
     #     "Baseline SGD (No compression)"
@@ -107,7 +111,56 @@ FILES_TO_COMPARE = [
     # (
     #     "results/ringallreduce/sparsified_gns/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k245162.pt", 
     #     "Random-K (5$\%$ compression)"
-    # )
+    # ),
+
+    # Fixed Random-K runs for comparison
+    (
+        "results/ringallreduce/grid_search/cifar10const/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_const_momentum_1_10.pt", 
+        "Baseline SGD (No compression)"
+    ),
+    (
+        "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k3775496.pt", 
+        "Random-K (77$\%$ compression)"
+    ),
+    # (
+    #     "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k2451621.pt", 
+    #     "Random-K (50$\%$ compression)"
+    # ),
+    (
+        "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k1225810.pt", 
+        "Random-K (25$\%$ compression)"
+    ),
+
+    # Adaptive-K results
+    # (
+    #     "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_adaptiveK_a0.001_m0.0_50.0.pt", 
+    #     "Adaptive-K [0, 50]"
+    # ),
+    (
+        "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_adaptiveK_a0.001_m0.0_50.0_80.0.pt", 
+        r"Adaptive-K [0, 50, 80], $\alpha = 0.001$"
+    ),
+    # (
+    #     "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_adaptiveK_a0.0015_m0.0_50.0_80.0.pt", 
+    #     r"Adaptive-K [0, 50, 80], $\alpha = 0.0015$"
+    # ),
+    (
+        "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_adaptiveK_a0.002_m0.0_50.0_80.0.pt", 
+        r"Adaptive-K [0, 50, 80], $\alpha = 0.002$"
+    ),
+    # (
+    #     "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_adaptiveK_a0.001_m0.0_50.0_80.0_90.0.pt", 
+    #     "Adaptive-K [0, 50, 80, 90]"
+    # ),
+    # (
+    #     "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_adaptiveK_a0.001_m0.0_50.0_80.0_90.0_95.0.pt", 
+    #     "Adaptive-K [0, 50, 80, 90, 95]"
+    # ),
+    # (
+    #     "results/ringallreduce/adaptive-k/results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_adaptiveK_a0.001_m0.0_60.0_90.0.pt", 
+    #     "Adaptive-K [0, 60, 90]"
+    # ),
+
 ]
 
 def load_data(file_path):
@@ -133,7 +186,8 @@ def plot_combined_curve(data_map, x_metric, x_label, y_metric, y_label, title, s
     """
     plt.figure(figsize=(12, 7))
     
-    colors = ['black', 'orange', 'brown', 'darkgreen', 'blue', 'purple', 'red']
+    # colors = ['black', 'orange', 'brown', 'darkgreen', 'blue', 'purple', 'red']
+    colors = ['black', 'orange', 'red', 'blue', 'purple', 'darkgreen']
     
     for i, (label, points) in enumerate(data_map.items()):
         x_values = points['x']
@@ -161,6 +215,10 @@ def plot_combined_curve(data_map, x_metric, x_label, y_metric, y_label, title, s
     plt.title(title, fontsize=14)
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend(fontsize=11)
+
+    if ZOOMED_IN:
+        plt.ylim(90, 100)
+
     plt.tight_layout()
     
     plt.savefig(save_path)
@@ -173,7 +231,7 @@ def run_comparison():
     # Data structures to hold plot data
     rounds_data = {}
     bandwidth_data = {}
-    time_data = {}  # <--- Added container for Time data
+    time_data = {}
     
     readable_metric = get_readable_metric_name(METRIC_NAME)
     bw_unit = "Bytes"
