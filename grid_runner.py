@@ -27,12 +27,12 @@ GRID = [
     # (8192, 1024, 3000, [0.075, 0.1, 0.125]),
     # (16384, 2048, 3000, [0.075, 0.1, 0.125])
 
-    # CIFAR10 grid search
+    # CIFAR10 grid search (repeated twice; once acc_decay and then const)
     # (16, 2, 14000, [0.01]),
     # (32, 4, 14000, [0.01, 0.02, 0.03]),
     # (64, 8, 14000, [0.03, 0.04, 0.06]),
     # (128, 16, 14000, [0.06, 0.08, 0.1]),
-    # (256, 32, 14000, [0.075, 0.1, 0.15])
+    # (256, 32, 14000, [0.075, 0.1, 0.15]),
     # (512, 64, 14000, [0.075, 0.1, 0.15]),
     # (1024, 128, 10000, [0.1, 0.15, 0.2]),
     # (2048, 256, 8000, [0.1, 0.15, 0.2]),
@@ -40,7 +40,19 @@ GRID = [
     # (8192, 1024, 8000, [0.15, 0.2]),
     # (16384, 2048, 8000, [0.15, 0.2])
 
-    # Runs needed for better GNS plots (EWMA beta = 0.99 rather than 0.999)
+    (512, 64, 14000, [0.075])
+
+    # Constant-LR CIFAR10 grid extension more accurate B_crit results
+    # (512, 64, 14000, [0.01, 0.015, 0.02]),
+    # (128, 16, 14000, [0.008]), 
+    # (256, 32, 14000, [0.01]),
+    # (1024, 128, 10000, [0.02, 0.025]),
+    # (2048, 256, 8000, [0.025, 0.03]),
+    # (4096, 512, 8000, [0.025, 0.03]),
+    # (8192, 1024, 8000, [0.025, 0.03]),
+    # (16384, 2048, 8000, [0.025, 0.04])
+
+    # Runs needed for better acc_decay CIFAR10 GNS plots (EWMA beta = 0.99 rather than 0.999)
     # (1024, 128, 10000, [0.1]),
     # (4096, 512, 8000, [0.1]),
     # (8192, 1024, 8000, [0.15]),
@@ -57,10 +69,11 @@ TARGET_ACC = 97.5
 CNN_MODEL = 'ResNet9'
 DATASET = 'CIFAR10'
 OPTIMISER = "momentum"
-LR_TYPE = 'acc_decay'
+LR_TYPE = 'const'
 SCRIPT_NAME = "ringallreduce_sim.py"
 NUM_CLIENTS = 8  # This stays fixed, modelling a DDP scenario where it is prohibitive to train on 1 node
-TARGET_FOLDER = "ringallreduce/grid_search/gns0.99"
+TEST_EVERY_INTERVAL = 5
+TARGET_FOLDER = "ringallreduce/grid_search/testGNSexp0.95"
 
 def format_time(seconds):
     if seconds < 60:
@@ -98,7 +111,8 @@ def run_grid():
                 "--num_rounds", str(max_rounds),
                 "--target_acc", str(TARGET_ACC),
                 "--num_clients", str(NUM_CLIENTS),
-                "--folder", str(TARGET_FOLDER)
+                "--folder", str(TARGET_FOLDER),
+                "--test_every", str(TEST_EVERY_INTERVAL)
             ]
 
             try:

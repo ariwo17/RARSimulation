@@ -4,34 +4,28 @@ import sys
 import os
 
 # --- EXPERIMENT CONFIG ---
-EFF_BS = 128 #512
-PW_BS = 16 #64
+EFF_BS = 128      # 16 * 8 clients
+PW_BS = 16        # Per worker batch size
 NUM_CLIENTS = 8
-LR = 0.05 #75
-LR_TYPE = "const"
-OPTIMISER = "sgd" #"momentum"
-COMPRESSION = "csh"
-MAX_ROUNDS = 4000 #14000
-TARGET_ACC = 99.9 #97.5
-DATASET = "MNIST" #"CIFAR10"
-ARCHITECTURE = "ComEffFlPaperCnnModel" #"ResNet9"
+LR = 0.05
+LR_TYPE = "const" 
+OPTIMISER = "sgd"
 
-# Full Gradient Length
-D = 876938 #4903242
+# We use 'none' because we want to isolate the effect of Local SGD 
+# (Dense gradients) without adding RandomK noise on top.
+COMPRESSION = "none" 
 
-# Different CSH widths corresponding to different compression rates
-# 50%, 25%, 10%, 5%, 1%, 0.2%
-SKETCH_COLS = [
-    # int(D * 0.50),  # 2,451,621
-    # int(D * 0.25),  # 1,225,810
-    # int(D * 0.10),  # 490,324
-    # int(D * 0.05),  # 245,162
-    # int(D * 0.01),  # 49,032
-    # int(D * 0.002)  # 9,806
-]
+MAX_ROUNDS = 4000  
+TARGET_ACC = 99.9
+DATASET = "MNIST"
+ARCHITECTURE = "ComEffFlPaperCnnModel"
+
+# Local Steps to Sweep (H)
+# H=1 is standard SGD. H>1 is Local SGD.
+LOCAL_STEPS = [2, 4, 8, 16, 32]
 
 SCRIPT_NAME = "ringallreduce_sim.py"
-TARGET_FOLDER = "ringallreduce/sketched_gns" 
+TARGET_FOLDER = "ringallreduce/localsgd_gns" 
 
 def format_time(seconds):
     if seconds < 60: return f"{seconds:.1f}s"
@@ -41,14 +35,13 @@ def format_time(seconds):
     return f"{hours:.1f}h"
 
 def run_grid():
-    print(f"Starting Sketch GNS Search.")
-    print(f"Fixed Settings: BS={EFF_BS} | LR={LR} | Mode={COMPRESSION} | Optim={OPTIMISER}")
-    print(f"Full Gradient Dimension: {D}")
+    print(f"Starting Local SGD GNS Search.")
+    print(f"Settings: BS={PW_BS}x{NUM_CLIENTS} | LR={LR} | Rounds={MAX_ROUNDS}")
+    print(f"Dataset: {DATASET} | Arch: {ARCHITECTURE}")
     print("="*60)
 
-    for width in SKETCH_COLS:
-        ratio = width / D
-        print(f"\n>>> Running Sketch Width: {width} (Ratio: {ratio:.1%})")
+    for h in LOCAL_STEPS:
+        print(f"\n>>> Running Local SGD with H={h} Local Steps")
         
         start_time = time.time()
         
@@ -65,14 +58,17 @@ def run_grid():
             "--num_clients", str(NUM_CLIENTS),
             "--folder", str(TARGET_FOLDER),
             
-            # Compression Args
+            # Local SGD Params
+            "--client_train_steps", str(h),
+            
+            # Disable Compression (Dense Local SGD)
             "--compression_scheme", COMPRESSION,
-            "--sketch_col", str(width),
-            "--sketch_row", "1"
+            "--k", "0", # Ignored
         ]
 
         try:
-            # Using run() to block until finished
+            # capture_output=True keeps terminal clean
+            # Set to False if you want to verify it's running correctly
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             elapsed = time.time() - start_time
@@ -80,12 +76,12 @@ def run_grid():
             
             if result.returncode != 0:
                 print(f"CRASHED with code {result.returncode}")
-                # Print last few lines of error
+                print("--- STDERR ---")
                 print(result.stderr[-500:]) 
-            elif "Stopping Early" in result.stdout:
-                print(f"SUCCESS (Target Reached) ({time_str})")
+            elif "Target accuracy" in result.stdout:
+                print(f"SUCCESS (Target Reached) in {time_str}")
             else:
-                print(f"FINISHED (Timeout/Done) ({time_str})")
+                print(f"FINISHED (Max Rounds) in {time_str}")
 
         except Exception as e:
             print(f"EXCEPTION: {e}")

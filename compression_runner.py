@@ -4,36 +4,43 @@ import sys
 import os
 import math
 
-# --- EXPERIMENT CONFIG ---
-EFF_BS = 128      # 16 * 8 clients
-PW_BS = 16        # Per worker batch size
+# --- EXPERIMENT CONFIG (CIFAR-10) ---
+EFF_BS = 512      # 64 * 8 clients
+PW_BS = 64        # Per worker batch size
 NUM_CLIENTS = 8
-LR = 0.05
+LR = 0.075
 LR_TYPE = "const"
-OPTIMISER = "sgd"
+OPTIMISER = "momentum"
 COMPRESSION = "randomk"
-MAX_ROUNDS = 4000
-TARGET_ACC = 99.9
-DATASET = "MNIST"
-ARCHITECTURE = "ComEffFlPaperCnnModel"
+MAX_ROUNDS = 14000
+TARGET_ACC = 97.5
+DATASET = "CIFAR10"
+ARCHITECTURE = "ResNet9"
 
-# Full Gradient Length for ComEffFlPaperCnnModel on MNIST
-D = 876938
+# # Full Gradient Length for ComEffFlPaperCnnModel on MNIST
+# D = 876938
+# Full Gradient Length for ResNet9 on CIFAR10
+D = 4903242
 
 # Different K values corresponding to different compression rates
-# 50%, 25%, 10%, 5%, 1%, 0.2%
+# 50%, 25%, 10%, 5%, 2.5%. 1% and 0.2% were found to be unstable,
+# with 0.2% not even reaching 50% train accuracy in 4000 rounds
+# and 1% stalling at 99.5% with a deflated GNS due to signal being
+# drowned by compression noise / bias correction.
 K_VALUES = [
-    int(D * 0.50),  # 438,469
-    int(D * 0.25),  # 219,234
-    int(D * 0.10),  # 87,693
-    int(D * 0.05),  # 43,846
-    int(D * 0.01),  # 8,769
-    int(D * 0.002)  # 1,753
+    # int(D * 0.50),  # 2,451,621
+    # int(D * 0.25),  # 1,225,810
+    # int(D * 0.10),  # 490,324
+    # int(D * 0.05),  # 245,162
+    # int(D * 0.01),  # 49,032
+    # int(D * 0.002)  # 9,806 (Aggressive!)
+    int(D * 0.77),  # Around 3,771,725, this is our estimated K_optimal (alpha = 0.001) corresponding to GNS at 50% training accuracy for CIFAR10
+    # int(D * 0.25),  # Around 1,225,810, this is our estimated K_optimal (alpha = 0.001) corresponding to GNS at 50% training accuracy for CIFAR10
 ]
 
 SCRIPT_NAME = "ringallreduce_sim.py"
 # Folder to save results (matches your previous structure)
-TARGET_FOLDER = "ringallreduce/sparsified_gns" 
+TARGET_FOLDER = "ringallreduce/adaptive-k" 
 
 def format_time(seconds):
     if seconds < 60: return f"{seconds:.1f}s"
