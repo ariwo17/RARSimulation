@@ -27,7 +27,8 @@ GRID = [
     # (8192, 1024, 3000, [0.075, 0.1, 0.125]),
     # (16384, 2048, 3000, [0.075, 0.1, 0.125])
 
-    # CIFAR10 grid search (repeated twice; once acc_decay and then const)
+    # CIFAR10 grid search (repeated three times; once acc_decay and
+    # then twice with const LR, once without compression and finally 10x CSH compression)
     # (16, 2, 14000, [0.01]),
     # (32, 4, 14000, [0.01, 0.02, 0.03]),
     # (64, 8, 14000, [0.03, 0.04, 0.06]),
@@ -39,8 +40,6 @@ GRID = [
     # (4096, 512, 8000, [0.1, 0.15, 0.2]),
     # (8192, 1024, 8000, [0.15, 0.2]),
     # (16384, 2048, 8000, [0.15, 0.2])
-
-    (512, 64, 14000, [0.075])
 
     # Constant-LR CIFAR10 grid extension more accurate B_crit results
     # (512, 64, 14000, [0.01, 0.015, 0.02]),
@@ -73,7 +72,10 @@ LR_TYPE = 'const'
 SCRIPT_NAME = "ringallreduce_sim.py"
 NUM_CLIENTS = 8  # This stays fixed, modelling a DDP scenario where it is prohibitive to train on 1 node
 TEST_EVERY_INTERVAL = 5
-TARGET_FOLDER = "ringallreduce/grid_search/testGNSexp0.95"
+TARGET_FOLDER = "ringallreduce/grid_search/bcrit_csh10x"
+COMPRESSION_SCHEME = "csh"
+D = 4903242 # For CIFAR10
+CSH_WIDTH = int(D * 0.10) # 490,324
 
 def format_time(seconds):
     if seconds < 60:
@@ -112,7 +114,9 @@ def run_grid():
                 "--target_acc", str(TARGET_ACC),
                 "--num_clients", str(NUM_CLIENTS),
                 "--folder", str(TARGET_FOLDER),
-                "--test_every", str(TEST_EVERY_INTERVAL)
+                "--test_every", str(TEST_EVERY_INTERVAL),
+                "--compression_scheme", str(COMPRESSION_SCHEME),
+                "--sketch_col", str(CSH_WIDTH)
             ]
 
             try:

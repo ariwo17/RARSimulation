@@ -90,13 +90,13 @@ def process_file(file_path, metric='trainACCs', alpha=0.1):
     # In reality this metric is problematic for my project because I ran some of those
     # experiments in parallel meaning they were contaminated by slow performance caused
     # by high GPU utilisation.
-    # if 'time' in results:
-    #     plot_single_curve(
-    #         results['time'], y_values,
-    #         'Wall Clock Time (s)', readable_metric,
-    #         f'{readable_metric} vs Time\n{filename}',
-    #         f"{base_name}_vs_time.png", alpha
-    #     )
+    if 'time' in results:
+        plot_single_curve(
+            results['time'], y_values,
+            'Wall Clock Time (s)', readable_metric,
+            f'{readable_metric} vs Time\n{filename}',
+            f"{base_name}_vs_time.png", alpha
+        )
 
     # Bandwidth vs Accuracy
     if 'cumulative_bandwidth' in results:
