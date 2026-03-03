@@ -7,9 +7,9 @@ import matplotlib # Added for new colormap API
 from scipy.optimize import curve_fit
 
 # CONFIG
-INPUT_FILE = "data/pareto_data_cifar10_test.json"
-BCRIT_OUTPUT_FILE = "data/bcrit_results_cifar10_test.json"
-PLOT_OUTPUT = "plots/pareto_frontiers_cifar10_test.png"
+INPUT_FILE = "data/pareto_data_cifar10_test_csh10x.json"
+BCRIT_OUTPUT_FILE = "data/bcrit_results_cifar10_test_csh10x.json"
+PLOT_OUTPUT = "plots/pareto_frontiers_cifar10_test_csh10x.png"
 
 # --- MANUAL CONTROL ---
 IGNORE_POINTS = [

@@ -10,11 +10,11 @@ from scipy.stats import binned_statistic
 DEFAULT_SAVE_DIR = "plots/gns_plots"
 
 # Milestones for CIFAR10
-# MILESTONES = [50, 60, 70, 80, 85, 90, 92, 95, 96, 97]
+MILESTONES = [50, 60, 70, 80, 85, 90, 92, 95, 96, 97]
 # Milestones for MNIST
-MILESTONES = [70, 90, 99, 99.5, 99.8]
+# MILESTONES = [70, 90, 99, 99.5, 99.8]
 
-def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir=DEFAULT_SAVE_DIR, filename="gns_comparison", x_min=None, x_max=None):
+def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir=DEFAULT_SAVE_DIR, filename="gns_comparison", x_min=None, x_max=None, show_bcrit_error=False, error_multiplier=0.5):
     """
     experiments: List of dicts [{'path': str, 'label': str, 'color': str (optional), 'linestyle': str (optional)}]
     """
@@ -42,6 +42,18 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
             results = data['results'] if isinstance(data, dict) and 'results' in data else data
             
             gns_data = np.array(results['GNS_estimate'])
+            # Filter out numerical artifacts where Signal << Noise
+            # If your training code clipped to 1e-9, we filter that.
+            # If it went negative, we filter that too.
+            # We also filter absurdly high spikes (e.g. > 1e8) that result from dividing by epsilon.
+            
+            # Create a mask for valid data
+            # 1.1e-9 is slightly above the epsilon clip of 1e-9
+            valid_gns_mask = (gns_data > 1.1e-9) & (gns_data < 1e6) 
+            
+            # Apply mask: Set invalid values to NaN (Matplotlib breaks the line)
+            gns_data = np.where(valid_gns_mask, gns_data, np.nan)
+            # -----------------------
             rounds = np.array(results['rounds'])
             
             if mode == 'train_acc':
@@ -68,32 +80,96 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
             error_vals = error_vals[valid_err]
             gns_vals = gns_aligned[valid_err]
 
-            if len(error_vals) == 0: continue
+            # if len(error_vals) == 0: continue
 
-            # Binning
-            bins = np.logspace(np.log10(np.min(error_vals)), np.log10(np.max(error_vals)), 200)
-            bin_means, bin_edges, _ = binned_statistic(error_vals, gns_vals, statistic='mean', bins=bins)
-            bin_centers = np.sqrt(bin_edges[:-1] * bin_edges[1:])
+            # # Binning
+            # bins = np.logspace(np.log10(np.min(error_vals)), np.log10(np.max(error_vals)), 200)
+            # bin_means, bin_edges, _ = binned_statistic(error_vals, gns_vals, statistic='mean', bins=bins)
+            # bin_centers = np.sqrt(bin_edges[:-1] * bin_edges[1:])
             
-            valid_bins = ~np.isnan(bin_means)
-            x_plot = bin_centers[valid_bins]
-            y_plot = bin_means[valid_bins]
+            # valid_bins = ~np.isnan(bin_means)
+            # x_plot = bin_centers[valid_bins]
+            # y_plot = bin_means[valid_bins]
             
-            # Update global limits (filtering for the visible X range)
-            if x_min is not None and x_max is not None:
-                # Approximate filter to only consider Y values in the visible X window for autoscaling
-                # This prevents low-accuracy noise from shrinking the view
-                err_min_view = 1.0 - (x_max / 100.0)
-                err_max_view = 1.0 - (x_min / 100.0)
-                mask_view = (x_plot >= err_min_view) & (x_plot <= err_max_view)
-                if np.any(mask_view):
-                    y_min_all = min(y_min_all, np.min(y_plot[mask_view]))
-                    y_max_all = max(y_max_all, np.max(y_plot[mask_view]))
+            # # Update global limits (filtering for the visible X range)
+            # if x_min is not None and x_max is not None:
+            #     # Approximate filter to only consider Y values in the visible X window for autoscaling
+            #     # This prevents low-accuracy noise from shrinking the view
+            #     err_min_view = 1.0 - (x_max / 100.0)
+            #     err_max_view = 1.0 - (x_min / 100.0)
+            #     mask_view = (x_plot >= err_min_view) & (x_plot <= err_max_view)
+            #     if np.any(mask_view):
+            #         y_min_all = min(y_min_all, np.min(y_plot[mask_view]))
+            #         y_max_all = max(y_max_all, np.max(y_plot[mask_view]))
+            # else:
+            #     y_min_all = min(y_min_all, np.min(y_plot))
+            #     y_max_all = max(y_max_all, np.max(y_plot))
+
+            # # Plot
+            # ax.plot(x_plot, y_plot, linewidth=2, label=label, color=color, linestyle=ls, alpha=0.9)
+
+# Check if this experiment requires cleaning
+            do_clean = exp.get('clean', False)
+
+            if not do_clean:
+                # === ORIGINAL LOGIC (For Baseline, 50%, 25%) ===
+                # This is your trusted code. It filters OUT NaNs and draws lines across gaps.
+                if len(error_vals) == 0: continue
+
+                # Binning
+                bins = np.logspace(np.log10(np.min(error_vals)), np.log10(np.max(error_vals)), 200)
+                bin_means, bin_edges, _ = binned_statistic(error_vals, gns_vals, statistic='mean', bins=bins)
+                bin_centers = np.sqrt(bin_edges[:-1] * bin_edges[1:])
+                
+                valid_bins = ~np.isnan(bin_means)
+                x_plot = bin_centers[valid_bins]
+                y_plot = bin_means[valid_bins]
+                
+                # Update global limits (filtering for the visible X range)
+                if x_min is not None and x_max is not None:
+                    err_min_view = 1.0 - (x_max / 100.0)
+                    err_max_view = 1.0 - (x_min / 100.0)
+                    mask_view = (x_plot >= err_min_view) & (x_plot <= err_max_view)
+                    if np.any(mask_view):
+                        y_min_all = min(y_min_all, np.min(y_plot[mask_view]))
+                        y_max_all = max(y_max_all, np.max(y_plot[mask_view]))
+                else:
+                    y_min_all = min(y_min_all, np.min(y_plot))
+                    y_max_all = max(y_max_all, np.max(y_plot))
+
             else:
-                y_min_all = min(y_min_all, np.min(y_plot))
-                y_max_all = max(y_max_all, np.max(y_plot))
+                # === CLEANING LOGIC (Only for 10% and 5%) ===
+                # CLEAN INPUTS: Remove artifacts so 'mean' works
+                mask_clean = (gns_vals > 1.1e-9) & (gns_vals < 1e8)
+                e_clean = error_vals[mask_clean]
+                g_clean = gns_vals[mask_clean]
 
-            # Plot
+                if len(e_clean) == 0: continue
+
+                # BINNING: Standard 'mean' on clean data
+                bins = np.logspace(np.log10(np.min(error_vals)), np.log10(np.max(error_vals)), 200)
+                bin_means, bin_edges, _ = binned_statistic(e_clean, g_clean, statistic='mean', bins=bins)
+                bin_centers = np.sqrt(bin_edges[:-1] * bin_edges[1:])
+                
+                # ASSIGN DIRECTLY: Keep NaNs to create Gaps
+                x_plot = bin_centers
+                y_plot = bin_means
+                
+                # FIX SCALING: Use 'nanmin'/'nanmax'
+                if x_min is not None and x_max is not None:
+                    err_min_view = 1.0 - (x_max / 100.0)
+                    err_max_view = 1.0 - (x_min / 100.0)
+                    mask_view = (x_plot >= err_min_view) & (x_plot <= err_max_view)
+                    if np.any(mask_view):
+                        view_data = y_plot[mask_view]
+                        if not np.all(np.isnan(view_data)):
+                            y_min_all = min(y_min_all, np.nanmin(view_data))
+                            y_max_all = max(y_max_all, np.nanmax(view_data))
+                else:
+                    y_min_all = min(y_min_all, np.nanmin(y_plot))
+                    y_max_all = max(y_max_all, np.nanmax(y_plot))
+
+            # Plot (Shared for both paths)
             ax.plot(x_plot, y_plot, linewidth=2, label=label, color=color, linestyle=ls, alpha=0.9)
 
         except Exception as e:
@@ -118,6 +194,16 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
 
             ax.plot(x_bcrit, y_bcrit, color='steelblue', linestyle='--', 
                     linewidth=2.5, markersize=8, label='$B_{crit}$', zorder=10)
+
+            if show_bcrit_error and 'fit_error' in df.columns:
+                # Scale down the error thickness
+                y_err = df['fit_error'] * error_multiplier
+                
+                lower_bound = np.maximum(y_bcrit - y_err, 1e-5) 
+                upper_bound = y_bcrit + y_err
+                
+                # Reduced alpha to 0.15 for a softer look
+                ax.fill_between(x_bcrit, lower_bound, upper_bound, color='steelblue', alpha=0.15, zorder=9)
 
     # Formatting
     ax.set_xscale('log')
@@ -156,8 +242,10 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
 
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Noise Scale", fontsize=12)
-    ax.set_title("Sparsified GNS vs Critical Batch Size (MNIST)", fontsize=14)
-    # ax.set_title("Simple Noise Scale vs Critical Batch Size (MNIST)", fontsize=14)
+    ax.set_title("Sparsified GNS vs Critical Batch Size (CIFAR10)", fontsize=14)
+    # ax.set_title("Sketched GNS vs Critical Batch Size (CIFAR10)", fontsize=14)
+    # ax.set_title("Simple Noise Scale vs Critical Batch Size (CIFAR10)", fontsize=14)
+    # ax.set_title("GNS and different steps of Local SGD (CIFAR10)", fontsize=14)
     ax.grid(True, which='major', alpha=0.5)
     ax.grid(True, which='minor', alpha=0.2)
     ax.legend(fontsize=9, loc='upper left')
@@ -171,50 +259,87 @@ if __name__ == "__main__":
     
     # Baseline GNS file
     # baseline_file = "results/ringallreduce/grid_search/gns0.99/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_acc_decay_momentum_1_10.pt"
-    baseline_file = "results/ringallreduce/grid_search/gns0.999/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt"
+    # baseline_file = "results/ringallreduce/grid_search/gns0.999/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt"
+    baseline_file = "results/ringallreduce/grid_search/cifar10const/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_const_momentum_1_10.pt"
 
     # Compressed GNS directory prefixes
     sketch_dir = "results/ringallreduce/sketched_gns"
     sparsification_dir = "results/ringallreduce/sparsified_gns"
     debug_dir = "results/ringallreduce/debug"
+    local_sgd_dir = "results/ringallreduce/localsgd_gns"
     
     experiments_list = [
         # Baseline GNS
-        # {'path': baseline_file, 'label': 'Baseline $B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
+        {'path': baseline_file, 'label': 'Baseline $B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
 
-        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c2451621.pt"), 
+        # # The Sparsified GNS runs
+        {'path': os.path.join(sparsification_dir, "results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k2451621.pt"), 
+         'label': 'Sparsified $B_{simple}$ ($\delta$=50%)', 'color': 'brown', 'linestyle': '-'},
+
+        {'path': os.path.join(sparsification_dir, "results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k1225810.pt"), 
+        'label': 'Sparsified $B_{simple}$ ($\delta$=25%)', 'color': 'darkgreen', 'linestyle': '-'},
+
+        {'path': os.path.join(sparsification_dir, "results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k490324.pt"), 
+        'label': 'Sparsified $B_{simple}$ ($\delta$=10%)', 'color': 'purple', 'linestyle': '-',
+        'clean': True},
+
+        {'path': os.path.join(sparsification_dir, "results_CIFAR10_ResNet9_randomk_14000_iid_8_64_0.075_const_momentum_1_10_k245162.pt"), 
+        'label': 'Sparsified $B_{simple}$ ($\delta$=5%)', 'color': 'red', 'linestyle': '-',
+        'clean': True},
+
+        # Sketched GNS runs
+        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c2451621.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=50%)', 'color': 'brown', 'linestyle': '-'},
 
-        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c1225810.pt"), 
+        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c1225810.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=25%)', 'color': 'darkgreen', 'linestyle': '-'},
 
-        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c490324.pt"), 
+        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c490324.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=10%)', 'color': 'seagreen', 'linestyle': '-'},
 
-        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c245162.pt"), 
+        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c245162.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=5%)', 'color': 'blue', 'linestyle': '-'},
 
-        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c49032.pt"), 
+        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c49032.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=1%)', 'color': 'violet', 'linestyle': '-'},
 
-        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c9806.pt"), 
+        # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.075_const_momentum_1_10_r1_c9806.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=0.2%)', 'color': 'red', 'linestyle': '-'},
     ]
 
 
-    experiments_list = [
-        # Baseline GNS
-        {'path': baseline_file, 'label': 'Baseline $B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
+    # experiments_list = [
+    #     # Baseline GNS
+    #     {'path': baseline_file, 'label': 'Baseline $B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
         
-        # The Sparsified GNS runs
-        {'path': os.path.join(debug_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_14000_iid_8_16_0.05_const_sgd_1_10_k438469.pt"), 
-         'label': 'Sparsified $B_{simple}$ ($\delta$=50%)', 'color': 'brown', 'linestyle': '-'},
+        # # The Local SGD GNS runs
+        # {'path': os.path.join(local_sgd_dir, "results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_2_10.pt"), 
+        #  'label': 'LocalSGD $B_{simple}$ (2 steps)', 'color': 'red', 'linestyle': '-'},
 
-        {'path': os.path.join(debug_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_14000_iid_8_16_0.05_const_sgd_1_10_k250000.pt"), 
-         'label': 'Sparsified $B_{simple}$ ($\delta$=28.5%)', 'color': 'cyan', 'linestyle': '-'},
+        # {'path': os.path.join(local_sgd_dir, "results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_4_10.pt"), 
+        #  'label': 'LocalSGD $B_{simple}$ (4 steps)', 'color': 'indigo', 'linestyle': '-'},
+
+        # {'path': os.path.join(local_sgd_dir, "results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_8_10.pt"), 
+        #  'label': 'LocalSGD $B_{simple}$ (8 steps)', 'color': 'purple', 'linestyle': '-'},
+
+        # # The Sparsified GNS runs
+        # {'path': os.path.join(sparsification_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k438469.pt"), 
+        #  'label': 'Sparsified $B_{simple}$ ($\delta$=50%)', 'color': 'brown', 'linestyle': '-'},
+
+        # {'path': os.path.join(sparsification_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k219234.pt"), 
+        #  'label': 'Sparsified $B_{simple}$ ($\delta$=25%)', 'color': 'darkgreen', 'linestyle': '-'},
          
-        {'path': os.path.join(debug_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_14000_iid_8_16_0.05_const_sgd_1_10_k25000.pt"), 
-         'label': 'Sparsified $B_{simple}$ ($\delta$=2.85%)', 'color': 'magenta', 'linestyle': '-'},
+        # {'path': os.path.join(sparsification_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k87693.pt"), 
+        #  'label': 'Sparsified $B_{simple}$ ($\delta$=10%)', 'color': 'seagreen', 'linestyle': '-'},
+
+        # {'path': os.path.join(sparsification_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k43846.pt"), 
+        #  'label': 'Sparsified $B_{simple}$ ($\delta$=5%)', 'color': 'blue', 'linestyle': '-'},
+         
+        # {'path': os.path.join(sparsification_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k26308.pt"), 
+        #  'label': 'Sparsified $B_{simple}$ ($\delta$=3%)', 'color': 'purple', 'linestyle': '-'},
+
+        # {'path': os.path.join(sparsification_dir, "results_MNIST_ComEffFlPaperCnnModel_randomk_4000_iid_8_16_0.05_const_sgd_1_10_k21923.pt"), 
+        #  'label': 'Sparsified $B_{simple}$ ($\delta$=2.5%)', 'color': 'red', 'linestyle': '-'},
 
         # # The Sketched GNS runs
         # {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c220000.pt"), 
@@ -227,21 +352,21 @@ if __name__ == "__main__":
         #  'label': 'Sketched $B_{simple}$ ($\delta$=1%)', 'color': 'purple', 'linestyle': '-'},
 
         # {'path': os.path.join(sketch_dir, "results_MNIST_ComEffFlPaperCnnModel_csh_4000_iid_8_16_0.05_const_sgd_1_10_r1_c2000.pt"), 
-        #  'label': 'Sketched $B_{simple}$ ($\delta$=0.2%)', 'color': 'red', 'linestyle': '-'},
-    ]
+    #     #  'label': 'Sketched $B_{simple}$ ($\delta$=0.2%)', 'color': 'red', 'linestyle': '-'},
+    # ]
     
     # Critical batch size ground truth results
-    bcrit_file = "data/bcrit_results_mnist.json"
-    # bcrit_file = "data/bcrit_results_cifar10.json"
+    # bcrit_file = "data/bcrit_results_mnist.json"
+    bcrit_file = "data/bcrit_results_cifar10.json"
 
     # Run Plotter
     plot_gns_comparison(
         experiments=experiments_list,
         mode='train_acc',
         bcrit_file=bcrit_file,
-        x_min=70, 
-        x_max=99.9,
-        # x_min=50, 
-        # x_max=97,
-        filename="mnist_gns_vs_bcrit_vs_sparsified"
+        # x_min=70, 
+        # x_max=99.9,
+        x_min=50,
+        x_max=97,
+        filename="cifar10_const_gns_vs_bcrit_vs_sparsified"
     )

@@ -5,8 +5,8 @@ import torch
 import numpy as np
 
 # CONFIG
-RESULTS_DIR = "results/ringallreduce/grid_search/gns0.999"
-OUTPUT_FILE = "data/pareto_data_cifar10_test.json"
+RESULTS_DIR = "results/ringallreduce/grid_search/bcrit_csh10x"
+OUTPUT_FILE = "data/pareto_data_cifar10_test_csh10x.json"
 DATASET = "CIFAR10"
 # FOR TRAIN, 0.06 worked best for MNIST, 0.09 better for CIFAR10 since results are less noisy
 # FOR TEST, 0.7 worked best for MNIST, 0.05 better for CIFAR10. Not entirely sure why.
@@ -35,7 +35,8 @@ def process_files():
             num_clients = int(parts[5])
             client_bs = int(parts[6])
             lr = float(parts[7])
-            local_steps = int(parts[-2]) 
+            local_steps = int(parts[10]) 
+            # local_steps = int(parts[-2]) 
             
             effective_bs = num_clients * client_bs
             
