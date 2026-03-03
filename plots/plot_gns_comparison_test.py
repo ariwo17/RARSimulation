@@ -14,7 +14,7 @@ MILESTONES = [50, 60, 70, 80, 85]
 # Milestones for MNIST
 # MILESTONES = [70, 80, 90, 95, 97, 98, 99]
 
-def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir=DEFAULT_SAVE_DIR, filename="gns_comparison", x_min=None, x_max=None):
+def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, compressed_bcrit_file=None, save_dir=DEFAULT_SAVE_DIR, filename="gns_comparison", x_min=None, x_max=None, show_bcrit_error=False, error_multiplier=0.5):
     """
     experiments: List of dicts [{'path': str, 'label': str, 'color': str (optional), 'linestyle': str (optional)}]
     """
@@ -25,6 +25,9 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
     # Track min/max values to zoom the Y-axis later
     y_min_all = float('inf')
     y_max_all = float('-inf')
+    
+    # Set xlabel early so it exists even if there are no GNS lines
+    xlabel = "Train Accuracy (%)" if mode == 'train_acc' else "Test Accuracy (%)"
 
     # Plot GNS Lines (Estimates)
     for exp in experiments:
@@ -66,7 +69,7 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
                 ## beta = 0.99 rather than 0.999. To correct this variance, we use an EWMA
                 ## of alpha = 0.1. Otherwise, if it's CIFAR10, there is no need in using EWMA.
                 # acc_aligned = pd.Series(acc_aligned).ewm(alpha=0.1).mean().values
-                acc_aligned = pd.Series(acc_aligned).ewm(alpha=1).mean().values
+                acc_aligned = pd.Series(acc_aligned).ewm(alpha=0.5).mean().values
 
             if np.max(acc_aligned) > 1.0: acc_aligned /= 100.0
             
@@ -123,8 +126,45 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
             y_min_all = min(y_min_all, np.min(y_bcrit))
             y_max_all = max(y_max_all, np.max(y_bcrit))
 
-            ax.plot(x_bcrit, y_bcrit, color='steelblue', linestyle='--', 
-                    linewidth=2.5, markersize=8, label='$B_{crit}$', zorder=10)
+            ax.plot(x_bcrit, y_bcrit, color='steelblue', linestyle='-', 
+                    linewidth=2.5, markersize=8, label='$B_{crit}$ (Baseline)', zorder=10)
+
+            if show_bcrit_error and 'fit_error' in df.columns:
+                # Scale down the error thickness
+                y_err = df['fit_error'] * error_multiplier
+                
+                lower_bound = np.maximum(y_bcrit - y_err, 1e-5) 
+                upper_bound = y_bcrit + y_err
+                
+                # Reduced alpha to 0.15 for a softer look
+                ax.fill_between(x_bcrit, lower_bound, upper_bound, color='steelblue', alpha=0.15, zorder=9)
+
+
+    # Compressed Critical Batch Size
+    if compressed_bcrit_file and os.path.exists(compressed_bcrit_file):
+        with open(compressed_bcrit_file, 'r') as f:
+            csh_bcrit_data = json.load(f)
+        
+        df_csh = pd.DataFrame(csh_bcrit_data)
+        df_csh = df_csh.sort_values('target')
+        
+        if not df_csh.empty:
+            x_bcrit_csh = (100.0 - df_csh['target']) / 100.0
+            y_bcrit_csh = df_csh['b_crit']
+            
+            y_min_all = min(y_min_all, np.min(y_bcrit_csh))
+            y_max_all = max(y_max_all, np.max(y_bcrit_csh))
+
+            ax.plot(x_bcrit_csh, y_bcrit_csh, color='purple', linestyle='-', 
+                    linewidth=2.5, markersize=8, label='$B_{crit}$ (CountSketch $\delta = 10\%$)', zorder=10)
+            
+            # Keep error logic just in case you want to toggle it back on later
+            if show_bcrit_error and 'fit_error' in df_csh.columns:
+                y_err_csh = df_csh['fit_error'] * error_multiplier
+                lower_bound_csh = np.maximum(y_bcrit_csh - y_err_csh, 1e-5)
+                upper_bound_csh = y_bcrit_csh + y_err_csh
+                ax.fill_between(x_bcrit_csh, lower_bound_csh, upper_bound_csh, color='purple', alpha=0.15, zorder=9)
+
 
     # Formatting
     ax.set_xscale('log')
@@ -164,7 +204,8 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Noise Scale", fontsize=12)
     # ax.set_title("Sketched GNS vs Critical Batch Size (CIFAR10)", fontsize=14)
-    ax.set_title("Simple Noise Scale vs Critical Batch Size (CIFAR10)", fontsize=14)
+    # ax.set_title("Simple Noise Scale vs Critical Batch Size (CIFAR10)", fontsize=14)
+    ax.set_title("Critical Batch Size: Baseline vs Count-Sketch (CIFAR10)", fontsize=14)
     ax.grid(True, which='major', alpha=0.5)
     ax.grid(True, which='minor', alpha=0.2)
     ax.legend(fontsize=9, loc='upper left')
@@ -177,7 +218,9 @@ def plot_gns_comparison(experiments, mode='train_acc', bcrit_file=None, save_dir
 if __name__ == "__main__":
     
     # Baseline GNS file
-    baseline_file = "results/ringallreduce/grid_search/gns0.99/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_acc_decay_momentum_1_10.pt"
+    baseline_file = "results/ringallreduce/grid_search/testGNSexp0.95/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_const_momentum_1_10.pt"
+    # baseline_file = "results/ringallreduce/grid_search/cifar10const/results_CIFAR10_ResNet9_none_10000_iid_8_128_0.1_const_momentum_1_10.pt"
+    # baseline_file = "results/ringallreduce/grid_search/gns0.99/results_CIFAR10_ResNet9_none_14000_iid_8_64_0.075_acc_decay_momentum_1_10.pt"
     # baseline_file = "results/ringallreduce/grid_search/gns0.99/results_MNIST_ComEffFlPaperCnnModel_none_14000_iid_8_16_0.05_const_sgd_1_10.pt"
     # baseline_file = "results/ringallreduce/grid_search/gns0.999/results_MNIST_ComEffFlPaperCnnModel_none_4000_iid_8_16_0.05_const_sgd_1_10.pt"
 
@@ -186,7 +229,7 @@ if __name__ == "__main__":
     
     experiments_list = [
         # Baseline GNS
-        {'path': baseline_file, 'label': '$B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
+        # {'path': baseline_file, 'label': '$B_{simple}$', 'color': 'tab:orange', 'linestyle': '-'},
         
         # {'path': os.path.join(sketch_dir, "results_CIFAR10_ResNet9_csh_14000_iid_8_64_0.1_acc_decay_momentum_1_10_r1_c2451621.pt"), 
         # 'label': 'Sketched $B_{simple}$ ($\delta$=50%)', 'color': 'brown', 'linestyle': '-'},
@@ -229,15 +272,18 @@ if __name__ == "__main__":
     # Critical batch size ground truth results
     # bcrit_file = "data/bcrit_results_mnist_test.json"
     bcrit_file = "data/bcrit_results_cifar10_test.json"
+    compressed_bcrit_file="data/bcrit_results_cifar10_test_csh10x.json"
 
     # Run Plotter
     plot_gns_comparison(
         experiments=experiments_list,
         mode='test_acc',
         bcrit_file=bcrit_file,
+        compressed_bcrit_file=compressed_bcrit_file,
+        show_bcrit_error=False,
         # x_min=70, 
         # x_max=99,
         x_min=50, 
         x_max=85,
-        filename="cifar10_gns_vs_bcrit_512_0.075_test"
+        filename="cifar10_bcrit_vs_bcrit_csh10x_test"
     )
