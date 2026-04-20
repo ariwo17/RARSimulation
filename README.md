@@ -98,7 +98,9 @@ All simulation parameters are managed via a Command Line Interface (CLI) using `
 
 Examples:
 1. Run a synchronous DDP simulation on CIFAR-10 using ResNet9 and Count Sketch ($\times 10$ compression):
-    ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --optim momentum --lr 0.075 --compression_scheme csh --sketch_col 490324 --num_clients 8
+    ```bash
+    python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --optim momentum --lr 0.075 --compression_scheme csh --sketch_col 490324 --num_clients 8
 2. Run a simulation where Random-K sparsity is dynamically adjusted based on the GNS estimate when specific training accuracy milestones are hit:
-    ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --compression_scheme randomk --adaptive_k --alpha 0.001 --adaptive_milestones 0.0,50.0,80.0
+    ```bash
+    python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --compression_scheme randomk --adaptive_k --alpha 0.001 --adaptive_milestones 0.0,50.0,80.0
 
