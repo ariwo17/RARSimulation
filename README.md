@@ -8,10 +8,10 @@ It features a custom **Ring-Allreduce Distributed Data Parallel (DDP) Simulator*
 
 ## Core Contributions
 
-This repository was forked from [https://github.com/QErywan/RARSimulation.git](https://github.com/QErywan/RARSimulation). The original code has been heavily refactored to serve as a highly automated, analytical Machine Learning testbed. Key engineering novelties include:
+This repository was forked from [https://github.com/QErywan/RARSimulation.git](https://github.com/QErywan/RARSimulation). The original code has been heavily refactored to serve as a highly automated, analytical ML testbed. Key engineering novelties include:
 
 1. **Zero-Overhead GNS Estimator:** Implements the McCandlish et al. two-batch method to track gradient variance and signal. Crucially, the estimator is adapted to compute norms directly on **Count-Sketched** gradients, bypassing the massive memory overhead of decompression.
-2. **Adaptive-$k$ Sparsification Scheduler:** Dynamically adjusts `Random-K` gradient sparsity during training using real-time GNS estimates as a proxy for SGD noise tolerance.
+2. **Adaptive-k Sparsification Scheduler:** Dynamically adjusts Random-k gradient sparsity during training using real-time GNS estimates as a proxy for SGD noise tolerance.
 3. **Automated Search Utilities:** A suite of CLI wrappers (e.g., `grid_runner.py`, `localsgd_runner.py`) designed for extracting time-to-accuracy plots, Pareto frontiers and optimal learning rates across hundreds of sequential runs.
 4. **Algorithmic Fixes:** Corrected flaws in previous iterations of the simulator, including global weight de-synchronisation, in-place gradient vanishing bugs, and stateful optimiser drift.
 
@@ -57,7 +57,7 @@ This repository was forked from [https://github.com/QErywan/RARSimulation.git](h
 
 ## Usage
 
-All simulation parameters are managed via a Command Line Interface (CLI) using `'argparse`' within `'ringallreduce_sim.py'`.
+All simulation parameters are managed via a Command Line Interface (CLI) using `argparse` within `ringallreduce_sim.py`.
 
 ### Simulation Parameters
 
@@ -97,8 +97,8 @@ All simulation parameters are managed via a Command Line Interface (CLI) using `
     python3 ringallreduce_sim.py
 
 Examples:
-    * Run a synchronous DDP simulation on CIFAR-10 using ResNet9 and Count Sketch ($\times 10$ compression):
+1. Run a synchronous DDP simulation on CIFAR-10 using ResNet9 and Count Sketch ($\times 10$ compression):
     ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --optim momentum --lr 0.075 --compression_scheme csh --sketch_col 490324 --num_clients 8
-    * Run a simulation where Random-K sparsity is dynamically adjusted based on the GNS estimate when specific training accuracy milestones are hit:
+2. Run a simulation where Random-K sparsity is dynamically adjusted based on the GNS estimate when specific training accuracy milestones are hit:
     ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --compression_scheme randomk --adaptive_k --alpha 0.001 --adaptive_milestones 0.0,50.0,80.0
 
