@@ -17,6 +17,7 @@ This repository was forked from [https://github.com/QErywan/RARSimulation.git](h
 
 ## Table of Contents
 
+- [Core Contributions](#core-contributions)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -35,23 +36,23 @@ This repository was forked from [https://github.com/QErywan/RARSimulation.git](h
 1. Clone the repo  
    ```bash
    git clone https://github.com/ariwo17/RARSimulation.git
-   cd RARSimulation```
+   cd RARSimulation
 
 2. Create a Virtual Environment
     ```bash
-    python3 -m venv .venv```
+    python3 -m venv .venv
 
 3. Activate the Virtual Environment
     ```bash
-    source .venv/bin/activate```
+    source .venv/bin/activate
 
 4. Upgrade pip
     ```bash
-    pip install --upgrade pip```
+    pip install --upgrade pip
 
 5. Install project requirements
     ```bash
-    pip install -r requirements.txt```
+    pip install -r requirements.txt
 
 
 ## Usage
@@ -89,13 +90,15 @@ All simulation parameters are managed via a Command Line Interface (CLI) using `
 | `folder`              | Target directory for saving .pt result logs                                                                   |
 
 
-### Running Simulation
+### Running the Simulation
 
 1. To run the simulation:
     ```bash
-    python3 ringallreduce_sim.py```
+    python3 ringallreduce_sim.py
 
-   Examples:
-    ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --optim momentum --lr 0.075 --compression_scheme csh --sketch_col 490324 --num_clients 8```
-    ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --compression_scheme randomk --adaptive_k --alpha 0.001 --adaptive_milestones 0.0,50.0,80.0```
+Examples:
+    * Run a synchronous DDP simulation on CIFAR-10 using ResNet9 and Count Sketch ($\times 10$ compression):
+    ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --optim momentum --lr 0.075 --compression_scheme csh --sketch_col 490324 --num_clients 8
+    * Run a simulation where Random-K sparsity is dynamically adjusted based on the GNS estimate when specific training accuracy milestones are hit:
+    ```python3 ringallreduce_sim.py --dataset CIFAR10 --net ResNet9 --compression_scheme randomk --adaptive_k --alpha 0.001 --adaptive_milestones 0.0,50.0,80.0
 
